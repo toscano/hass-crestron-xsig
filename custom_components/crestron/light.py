@@ -76,7 +76,7 @@ class CrestronLight(LightEntity):
     @property
     def brightness(self):
         if self._color_mode == ColorMode.BRIGHTNESS:
-            return int(self._hub.get_analog(self._brightness_join) / 255)
+            return min(255, int(self._hub.get_analog(self._brightness_join) / 255))
 
     @property
     def is_on(self):
