@@ -1,9 +1,11 @@
 """Platform for Crestron Light integration."""
+import asyncio
+
 import voluptuous as vol
 import logging
 
 import homeassistant.helpers.config_validation as cv
-from homeassistant.components.light import LightEntity, SUPPORT_BRIGHTNESS
+from homeassistant.components.light import LightEntity, LightEntityFeature, ColorMode, ATTR_TRANSITION, ATTR_BRIGHTNESS
 from homeassistant.const import CONF_NAME, CONF_TYPE
 from .const import HUB, DOMAIN, CONF_BRIGHTNESS_JOIN
 
@@ -30,7 +32,9 @@ class CrestronLight(LightEntity):
         self._name = config.get(CONF_NAME)
         self._brightness_join = config.get(CONF_BRIGHTNESS_JOIN)
         if config.get(CONF_TYPE) == "brightness":
-            self._supported_features = SUPPORT_BRIGHTNESS
+            self._color_mode = ColorMode.BRIGHTNESS
+        else:
+            self._color_mode = ColorMode.ONOFF
 
     async def async_added_to_hass(self):
         self._hub.register_callback(self.process_callback)
@@ -50,8 +54,20 @@ class CrestronLight(LightEntity):
         return self._name
 
     @property
+    def unique_id(self):
+        return 'light-' + str(self._brightness_join)
+
+    @property
+    def color_mode(self):
+        return self._color_mode
+
+    @property
+    def supported_color_modes(self):
+        return {ColorMode.BRIGHTNESS, ColorMode.ONOFF}
+
+    @property
     def supported_features(self):
-        return self._supported_features
+        return LightEntityFeature.TRANSITION
 
     @property
     def should_poll(self):
@@ -59,22 +75,47 @@ class CrestronLight(LightEntity):
 
     @property
     def brightness(self):
-        if self._supported_features == SUPPORT_BRIGHTNESS:
+        if self._color_mode == ColorMode.BRIGHTNESS:
             return int(self._hub.get_analog(self._brightness_join) / 255)
 
     @property
     def is_on(self):
-        if self._supported_features == SUPPORT_BRIGHTNESS:
+        if self._color_mode == ColorMode.BRIGHTNESS:
             if int(self._hub.get_analog(self._brightness_join) / 255) > 0:
                 return True
             else:
                 return False
 
     async def async_turn_on(self, **kwargs):
-        if "brightness" in kwargs:
-            self._hub.set_analog(self._brightness_join, int(kwargs["brightness"] * 255))
+        if ATTR_BRIGHTNESS not in kwargs:
+            if self._color_mode == ColorMode.ONOFF:
+                self._hub.set_analog(self._brightness_join, 65535)
+            elif self._color_mode == ColorMode.BRIGHTNESS:
+                # If light supports dimming and does not provide a brightness, still transition with 2 seconds
+                await self.__transition(65535, 2)
         else:
-            self._hub.set_analog(self._brightness_join, 65535)
+            brightness = int(kwargs[ATTR_BRIGHTNESS] * 255)
+            if ATTR_TRANSITION not in kwargs:
+                self._hub.set_analog(self._brightness_join, brightness)
+            else:
+                await self.__transition(brightness, int(kwargs[ATTR_TRANSITION]))
 
     async def async_turn_off(self, **kwargs):
-        self._hub.set_analog(self._brightness_join, 0)
+        if self._color_mode == ColorMode.ONOFF:
+            self._hub.set_analog(self._brightness_join, 0)
+        else:
+            if ATTR_TRANSITION not in kwargs:
+                await self.__transition(0, 2)
+            else:
+                await self.__transition(0, int(kwargs[ATTR_TRANSITION]))
+
+    async def __transition(self, brightness, transition_time):
+        if transition_time == 0:
+            self._hub.set_analog(self._brightness_join, int(brightness))
+        else:
+            incr_per_step = (brightness - self._hub.get_analog(self._brightness_join)) / (transition_time * 20)
+            current_brightness = self._hub.get_analog(self._brightness_join)
+            for i in range(transition_time * 20):
+                current_brightness = current_brightness + incr_per_step
+                self._hub.set_analog(self._brightness_join, int(current_brightness))
+                await asyncio.sleep(0.05)
