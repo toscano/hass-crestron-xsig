@@ -90,17 +90,18 @@ media_player:
 ### Lights
 
 This platform supports monochromatic "brightness" type lights (basically, anything that can have its brightness represented by an analog join on the control system).  I tested this with a CLX-1DIM8 panel and multiple CLW-DIMEX switches.
+Also there is support for lights that are switched (no brightness setting).
 
 ```yaml
 light:
   - platform: crestron
     name: "Dummy Light"
-    brightness_join: 9
+    join: 9
     type: brightness
 ```
  - _name_: The entity id will be derived from this string (lower-cased with _ for spaces).  The friendly name will be set to this string.
- - _brightness_join_: The analog join on the XSIG symbol that represents the light's brightness.
- - _type_: The only supported value for now is *brightness*.  TODO: add support for other HA light types.
+ - _join_: If light supports brightness: the analog join on the XSIG symbol that represents the light's brightness. If not: the digital join on the XSIG symbol that represents the light's state.
+ - _type_: ```brightness``` or ```onoff```
 
 ### Thermostat
 
