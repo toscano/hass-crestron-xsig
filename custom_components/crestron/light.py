@@ -72,6 +72,8 @@ class CrestronLight(LightEntity):
     def supported_features(self):
         if self._color_mode == ColorMode.BRIGHTNESS:
             return LightEntityFeature.TRANSITION
+        else:
+            return 0
 
     @property
     def should_poll(self):
@@ -94,7 +96,12 @@ class CrestronLight(LightEntity):
 
     async def async_turn_on(self, **kwargs):
         if self._color_mode == ColorMode.ONOFF:
+            # Onoff lights can only be switched by signal pulses
+            # Therefore, must check if light is actually turned off
+            if not self.is_on:
                 self._hub.set_digital(self._join, True)
+                await asyncio.sleep(0.05)
+                self._hub.set_digital(self._join, False)
         elif self._color_mode == ColorMode.BRIGHTNESS:
             if ATTR_BRIGHTNESS not in kwargs:
                 # If light supports dimming and does not provide a brightness, still transition with 2 seconds
@@ -108,7 +115,12 @@ class CrestronLight(LightEntity):
 
     async def async_turn_off(self, **kwargs):
         if self._color_mode == ColorMode.ONOFF:
-            self._hub.set_digital(self._join, False)
+            # Onoff lights can only be switched by signal pulses
+            # Therefore, must check if light is actually turned off
+            if self.is_on:
+                self._hub.set_digital(self._join, True)
+                await asyncio.sleep(0.05)
+                self._hub.set_digital(self._join, False)
         if self._color_mode == ColorMode.BRIGHTNESS:
             if ATTR_TRANSITION not in kwargs:
                 await self.__transition(0, 2)
