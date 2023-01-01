@@ -9,6 +9,7 @@ Currently supported devices:
   - Sensor 
   - Switch 
   - Media Player
+  - Button (virtual)
 
 ## Adding the component to Home Assistant
 
@@ -45,15 +46,16 @@ Then, if you want to make use of the control surface (touchpanels/kepads) syncin
 
 Finally, add entries for each HA component/platform type to your configuration.yaml for the appropriate entity type in Home Assistant:
 
-|Crestron Device|Home Assistant component type|
-|---|---|
-|Light|light|
-|Thermostat|climate|
-|Shades|cover|
-|read-only Digital Join|binary_sensor|
-|read-only Analog Join|sensor|
-|read-write Digital Join|switch|
-|Audio/Video Switcher|media_player|
+| Crestron Device                                | Home Assistant component type |
+|------------------------------------------------|-------------------------------|
+| Light                                          | light                         |
+| Thermostat                                     | climate                       |
+| Shades                                         | cover                         |
+| read-only Digital Join                         | binary_sensor                 |
+| read-only Analog Join                          | sensor                        |
+| read-write Digital Join                        | switch                        |
+| Audio/Video Switcher                           | media_player                  |
+| read-write Digital Join<br/>(for writing only) | button                        |
 
 >To be clear: if you configure multiple platforms (light, cover, climate, ...) plus synchronization in both directions, your configuration.yaml will look something like:
 
@@ -83,6 +85,9 @@ switch:
   - platform: crestron
   ...
 media_player:
+  - platform: crestron
+  ...
+button:
   - platform: crestron
   ...
 ```
@@ -247,6 +252,23 @@ media_player:
 - _volume_join_: analog join that represents the volume of the channel (0-65535)
 - _source_number_join_: analog join that represents the selected input for the output channel.  1 would correspond to input 1, 2 to input 2, and so on.
 - _sources_: a dictionary of _input_ to _name_ mappings.  The input number is the actual input (corresponding to the source_number_join) number, whereas the name will be shown in the UI when selecting inputs/sources.  So when a user selects the _name_ in the UI, the _source_number_join_ will be set to _input_.
+
+### Button (virtual)
+
+This represents action triggers in the control system caused by signal pulses on a digital join. These actions are triggered in Home Assistant by means of a virtual button.
+For instance, a virtual button in a Crestron touch panel that triggers a sequence of events programmed in the control system (e.g. turning all lights off) can also be triggered by Home Assistant by means of a Button.
+
+When a virtual button is pressed in Home Assistant, the associated digital join will change to HIGH and change to LOW right after, generating a signal pulse that can be recognized by the control system as an event.
+
+```yaml
+switch:
+  - platform: crestron
+    name: "Dummy Button"
+    button_join: 70
+```
+
+- _name_: The entity id will be derived from this string (lower-cased with _ for spaces).  The friendly name will be set to this string.
+- _button_join_: digital join to represent as a button in Home Assistant
 
 ### Control Surface Sync
 
