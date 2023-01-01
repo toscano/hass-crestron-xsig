@@ -50,6 +50,10 @@ class CrestronSwitch(SwitchEntity):
         return self._name
 
     @property
+    def unique_id(self):
+        return 'switch-' + str(self._switch_join)
+
+    @property
     def should_poll(self):
         return False
 
