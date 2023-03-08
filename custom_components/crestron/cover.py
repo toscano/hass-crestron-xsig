@@ -5,10 +5,10 @@ import logging
 import voluptuous as vol
 
 import homeassistant.helpers.config_validation as cv
-from homeassistant.helpers.event import call_later
 from homeassistant.components.cover import (
     CoverEntity,
     DEVICE_CLASS_SHADE,
+    DEVICE_CLASS_CURTAIN,
     SUPPORT_OPEN,
     SUPPORT_CLOSE,
     SUPPORT_SET_POSITION,
@@ -37,7 +37,7 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORM_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_NAME): cv.string,
-        vol.Required(CONF_TYPE): vol.In(["analog_shade", "digital_shade"]),       
+        vol.Required(CONF_TYPE): vol.In(["analog_shade", "digital_shade", "digital_curtain"]),
         vol.Required(CONF_IS_OPENING_JOIN): cv.positive_int,
         vol.Required(CONF_IS_CLOSING_JOIN): cv.positive_int,
         vol.Required(CONF_STOP_JOIN): cv.positive_int,
@@ -70,6 +70,15 @@ class CrestronShade(CoverEntity):
         elif (self._type == "digital_shade"):
             self._digital = True
             self._device_class = DEVICE_CLASS_SHADE
+            self._supported_features = (
+                SUPPORT_OPEN | SUPPORT_CLOSE | SUPPORT_STOP
+            )
+            self._is_moving_join = config.get(CONF_IS_MOVING_JOIN)
+            self._open_full_join = config.get(CONF_OPEN_FULL_JOIN)
+            self._close_full_join = config.get(CONF_CLOSE_FULL_JOIN)
+        elif (self._type == "digital_curtain"):
+            self._digital = True
+            self._device_class = DEVICE_CLASS_CURTAIN
             self._supported_features = (
                 SUPPORT_OPEN | SUPPORT_CLOSE | SUPPORT_STOP
             )
@@ -156,7 +165,8 @@ class CrestronShade(CoverEntity):
         self._manual_stop = False
         if self._digital:
             self._hub.set_digital(self._open_full_join, 1)
-            call_later(self.hass, 0.2, self._hub.set_digital(self._open_full_join, 0))
+            await asyncio.sleep(0.2)
+            self._hub.set_digital(self._open_full_join, 0)
         else:
             self._hub.set_analog(self._pos_join, 0xFFFF)
 
@@ -164,11 +174,13 @@ class CrestronShade(CoverEntity):
         self._manual_stop = False
         if self._digital:
             self._hub.set_digital(self._close_full_join, 1)
-            call_later(self.hass, 0.2, self._hub.set_digital(self._close_full_join, 0))
+            await asyncio.sleep(0.2)
+            self._hub.set_digital(self._close_full_join, 0)
         else:
             self._hub.set_analog(self._pos_join, 0)
 
     async def async_stop_cover(self, **kwargs):
         self._manual_stop = True
         self._hub.set_digital(self._stop_join, 1)
-        call_later(self.hass, 0.2, self._hub.set_digital(self._stop_join, 0))
+        await asyncio.sleep(0.2)
+        self._hub.set_digital(self._stop_join, 0)
