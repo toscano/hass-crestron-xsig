@@ -60,5 +60,5 @@ class CrestronButton(ButtonEntity):
     async def async_press(self):
         # In Crestron, button presses are modelled by triggering a signal pulse on a digital join
         self._hub.set_digital(self._button_join, True)
-        await asyncio.sleep(0.05)
+        await asyncio.sleep(0.2)
         self._hub.set_digital(self._button_join, False)
