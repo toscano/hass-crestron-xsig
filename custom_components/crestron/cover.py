@@ -148,24 +148,25 @@ class CrestronShade(CoverEntity):
             return self._hub.get_digital(self._is_closed_join)
 
     async def async_set_cover_position(self, **kwargs):
-        self._hub.set_analog(self._pos_join, int(kwargs["position"]) * 655)
-        self._manual_stop = False
+        if not self._digital:
+            self._hub.set_analog(self._pos_join, int(kwargs["position"]) * 655)
+            self._manual_stop = False
 
     async def async_open_cover(self, **kwargs):
+        self._manual_stop = False
         if self._digital:
             self._hub.set_digital(self._open_full_join, 1)
             call_later(self.hass, 0.2, self._hub.set_digital(self._open_full_join, 0))
         else:
             self._hub.set_analog(self._pos_join, 0xFFFF)
-        self._manual_stop = False
 
     async def async_close_cover(self, **kwargs):
+        self._manual_stop = False
         if self._digital:
             self._hub.set_digital(self._close_full_join, 1)
             call_later(self.hass, 0.2, self._hub.set_digital(self._close_full_join, 0))
         else:
             self._hub.set_analog(self._pos_join, 0)
-        self._manual_stop = False
 
     async def async_stop_cover(self, **kwargs):
         self._manual_stop = True
