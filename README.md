@@ -220,10 +220,12 @@ switch:
   - platform: crestron
     name: "Dummy Switch"
     switch_join: 65
+    pulsed: False
 ```
 
 - _name_: The entity id will be derived from this string (lower-cased with _ for spaces).  The friendly name will be set to this string.
 - _switch_join_: digital join to represent as a switch in Home Assistant
+- _pulsed_: indicates whether the switch is switched by a signal pulse, or that it switches by providing the requested state.
 
 ### Media Player
 
