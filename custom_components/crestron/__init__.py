@@ -90,6 +90,7 @@ class CrestronHub:
         self.port = config.get(CONF_PORT)
         self.context = Context()
         self.to_hub = {}
+        self.tracker = None
         self.hub.register_sync_all_joins_callback(self.sync_joins_to_hub)
         if CONF_TO_HUB in config:
             track_templates = []
@@ -125,11 +126,12 @@ class CrestronHub:
     async def start(self):
         await self.hub.listen(self.port)
 
-    def stop(self, event):
+    async def stop(self, event):
         """ remove callback(s) and template trackers """
         self.hub.remove_callback(self.join_change_callback)
-        self.tracker.async_remove()
-        self.hub.stop()
+        if self.tracker is not None:
+            self.tracker.async_remove()
+        await self.hub.stop()
 
     async def join_change_callback(self, cbtype, value):
         """ Call service for tracked join change (from_hub)"""
