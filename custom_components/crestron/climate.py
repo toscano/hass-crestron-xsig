@@ -4,11 +4,8 @@ import voluptuous as vol
 import logging
 
 import homeassistant.helpers.config_validation as cv
-from homeassistant.components.climate import ClimateEntity
+from homeassistant.components.climate import ClimateEntityFeature, ClimateEntity
 from homeassistant.components.climate.const import (
-    SUPPORT_FAN_MODE,
-    SUPPORT_TARGET_TEMPERATURE_RANGE,
-    SUPPORT_TARGET_TEMPERATURE,
     HVAC_MODE_OFF,
     HVAC_MODE_HEAT,
     HVAC_MODE_COOL,
@@ -40,6 +37,7 @@ from .const import (
     CONF_C1_JOIN,
     CONF_C2_JOIN,
     CONF_FA_JOIN,
+    CONF_PULSED,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -47,6 +45,7 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORM_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_NAME): cv.string,
+        vol.Required(CONF_PULSED): cv.boolean,
         vol.Optional(CONF_HEAT_SP_JOIN): cv.positive_int,
         vol.Optional(CONF_COOL_SP_JOIN): cv.positive_int,
         vol.Optional(CONF_REG_TEMP_JOIN): cv.positive_int,
@@ -76,59 +75,62 @@ class CrestronThermostat(ClimateEntity):
     def __init__(self, hub, config, unit):
         self._hub = hub
 
+        self._pulsed = config.get(CONF_PULSED)
+
         self._fans = []
-        features = []
-        if config[CONF_FAN_ON_JOIN]:
+        features = [ClimateEntityFeature.TURN_OFF, ClimateEntityFeature.TURN_ON]
+        if config.get(CONF_FAN_ON_JOIN):
             self._fans.append(FAN_ON)
-            features.append(SUPPORT_FAN_MODE)
-        if config[CONF_FAN_AUTO_JOIN]:
+            features.append(ClimateEntityFeature.FAN_MODE)
+        if config.get(CONF_FAN_AUTO_JOIN):
             self._fans.append(FAN_AUTO)
-            features.append(SUPPORT_FAN_MODE)
-        if self._fans.__len__ == 0:
+            features.append(ClimateEntityFeature.FAN_MODE)
+        if len(self._fans) == 0:
             self._fans = None
 
         self._hvac_modes = []
-        if config[CONF_MODE_HEAT_JOIN]:
+        if config.get(CONF_MODE_HEAT_JOIN):
             self._hvac_modes.append(HVAC_MODE_HEAT)
-            features.append(SUPPORT_TARGET_TEMPERATURE)
-        if config[CONF_MODE_COOL_JOIN]:
+            features.append(ClimateEntityFeature.TARGET_TEMPERATURE)
+        if config.get(CONF_MODE_COOL_JOIN):
             self._hvac_modes.append(HVAC_MODE_COOL)
-            features.append(SUPPORT_TARGET_TEMPERATURE)
-        if config[CONF_MODE_AUTO_JOIN]:
+            features.append(ClimateEntityFeature.TARGET_TEMPERATURE)
+        if config.get(CONF_MODE_AUTO_JOIN):
             self._hvac_modes.append(HVAC_MODE_HEAT_COOL)
-            features.append(SUPPORT_TARGET_TEMPERATURE_RANGE)
-        if config[CONF_MODE_OFF_JOIN]:
+            features.append(ClimateEntityFeature.TARGET_TEMPERATURE_RANGE)
+        if config.get(CONF_MODE_OFF_JOIN):
             self._hvac_modes.append(HVAC_MODE_OFF)
-        if self._hvac_modes.__len__ == 0:
+        if len(self._hvac_modes) == 0:
             self._hvac_modes = None
 
+        self._supported_features = None
         deuplicated_features = list(set(features))
-        if deuplicated_features.__len__ > 0:
-            for deuplicated_feature in deuplicated_features:
+        for deuplicated_feature in deuplicated_features:
+            if self._supported_features is None:
+                self._supported_features = deuplicated_feature
+            else:
                 self._supported_features = (
                     self._supported_features | deuplicated_feature
                 )
-        else:
-            self._supported_features = None
 
         self._should_poll = False
         self._temperature_unit = unit
 
-        self._name = config[CONF_NAME]
-        self._heat_sp_join = config[CONF_HEAT_SP_JOIN]
-        self._cool_sp_join = config[CONF_COOL_SP_JOIN]
-        self._reg_temp_join = config[CONF_REG_TEMP_JOIN]
-        self._mode_heat_join = config[CONF_MODE_HEAT_JOIN]
-        self._mode_cool_join = config[CONF_MODE_COOL_JOIN]
-        self._mode_auto_join = config[CONF_MODE_AUTO_JOIN]
-        self._mode_off_join = config[CONF_MODE_OFF_JOIN]
-        self._fan_on_join = config[CONF_FAN_ON_JOIN]
-        self._fan_auto_join = config[CONF_FAN_AUTO_JOIN]
-        self._h1_join = config[CONF_H1_JOIN]
+        self._name = config.get(CONF_NAME)
+        self._heat_sp_join = config.get(CONF_HEAT_SP_JOIN)
+        self._cool_sp_join = config.get(CONF_COOL_SP_JOIN)
+        self._reg_temp_join = config.get(CONF_REG_TEMP_JOIN)
+        self._mode_heat_join = config.get(CONF_MODE_HEAT_JOIN)
+        self._mode_cool_join = config.get(CONF_MODE_COOL_JOIN)
+        self._mode_auto_join = config.get(CONF_MODE_AUTO_JOIN)
+        self._mode_off_join = config.get(CONF_MODE_OFF_JOIN)
+        self._fan_on_join = config.get(CONF_FAN_ON_JOIN)
+        self._fan_auto_join = config.get(CONF_FAN_AUTO_JOIN)
+        self._h1_join = config.get(CONF_H1_JOIN)
         self._h2_join = config.get(CONF_H2_JOIN)
-        self._c1_join = config[CONF_C1_JOIN]
+        self._c1_join = config.get(CONF_C1_JOIN)
         self._c2_join = config.get(CONF_C2_JOIN)
-        self._fa_join = config[CONF_FA_JOIN]
+        self._fa_join = config.get(CONF_FA_JOIN)
 
     async def async_added_to_hass(self):
         self._hub.register_callback(self.process_callback)
@@ -230,57 +232,101 @@ class CrestronThermostat(ClimateEntity):
         ):
             return CURRENT_HVAC_COOL
 
+        if self._mode_off_join is not None and self._hub.get_digital(
+            self._mode_off_join
+        ):
+            return CURRENT_HVAC_OFF
         return CURRENT_HVAC_IDLE
 
     async def async_set_hvac_mode(self, hvac_mode):
         if hvac_mode == HVAC_MODE_HEAT_COOL:
             if self._mode_auto_join is not None:
-                self._hub.set_digital(self._mode_auto_join, True)
+                await self._hub.set_digital_helper(
+                    self._mode_auto_join, True, self._pulsed
+                )
             if self._mode_cool_join is not None:
-                self._hub.set_digital(self._mode_cool_join, False)
+                await self._hub.set_digital_helper(
+                    self._mode_cool_join, False, self._pulsed
+                )
             if self._mode_off_join is not None:
-                self._hub.set_digital(self._mode_off_join, False)
+                await self._hub.set_digital_helper(
+                    self._mode_off_join, False, self._pulsed
+                )
             if self._mode_heat_join is not None:
-                self._hub.set_digital(self._mode_heat_join, False)
+                await self._hub.set_digital_helper(
+                    self._mode_heat_join, False, self._pulsed
+                )
         if hvac_mode == HVAC_MODE_HEAT:
             if self._mode_auto_join is not None:
-                self._hub.set_digital(self._mode_auto_join, False)
+                await self._hub.set_digital_helper(
+                    self._mode_auto_join, False, self._pulsed
+                )
             if self._mode_cool_join is not None:
-                self._hub.set_digital(self._mode_cool_join, False)
+                await self._hub.set_digital_helper(
+                    self._mode_cool_join, False, self._pulsed
+                )
             if self._mode_off_join is not None:
-                self._hub.set_digital(self._mode_off_join, False)
+                await self._hub.set_digital_helper(
+                    self._mode_off_join, False, self._pulsed
+                )
             if self._mode_heat_join is not None:
-                self._hub.set_digital(self._mode_heat_join, True)
+                await self._hub.set_digital_helper(
+                    self._mode_heat_join, True, self._pulsed
+                )
         if hvac_mode == HVAC_MODE_COOL:
             if self._mode_auto_join is not None:
-                self._hub.set_digital(self._mode_auto_join, False)
+                await self._hub.set_digital_helper(
+                    self._mode_auto_join, False, self._pulsed
+                )
             if self._mode_cool_join is not None:
-                self._hub.set_digital(self._mode_cool_join, True)
+                await self._hub.set_digital_helper(
+                    self._mode_cool_join, True, self._pulsed
+                )
             if self._mode_off_join is not None:
-                self._hub.set_digital(self._mode_off_join, False)
+                await self._hub.set_digital_helper(
+                    self._mode_off_join, False, self._pulsed
+                )
             if self._mode_heat_join is not None:
-                self._hub.set_digital(self._mode_heat_join, False)
+                await self._hub.set_digital_helper(
+                    self._mode_heat_join, False, self._pulsed
+                )
         if hvac_mode == HVAC_MODE_OFF:
             if self._mode_auto_join is not None:
-                self._hub.set_digital(self._mode_auto_join, False)
+                await self._hub.set_digital_helper(
+                    self._mode_auto_join, False, self._pulsed
+                )
             if self._mode_cool_join is not None:
-                self._hub.set_digital(self._mode_cool_join, False)
+                await self._hub.set_digital_helper(
+                    self._mode_cool_join, False, self._pulsed
+                )
             if self._mode_off_join is not None:
-                self._hub.set_digital(self._mode_off_join, True)
+                await self._hub.set_digital_helper(
+                    self._mode_off_join, True, self._pulsed
+                )
             if self._mode_heat_join is not None:
-                self._hub.set_digital(self._mode_heat_join, False)
+                await self._hub.set_digital_helper(
+                    self._mode_heat_join, False, self._pulsed
+                )
 
     async def async_set_fan_mode(self, fan_mode):
         if fan_mode == FAN_AUTO:
             if self._fan_on_join is not None:
-                self._hub.set_digital(self._fan_on_join, False)
+                await self._hub.set_digital_helper(
+                    self._fan_on_join, False, self._pulsed
+                )
             if self._fan_auto_join is not None:
-                self._hub.set_digital(self._fan_auto_join, True)
+                await self._hub.set_digital_helper(
+                    self._fan_auto_join, True, self._pulsed
+                )
         if fan_mode == FAN_ON:
             if self._fan_on_join is not None:
-                self._hub.set_digital(self._fan_on_join, True)
+                await self._hub.set_digital_helper(
+                    self._fan_on_join, True, self._pulsed
+                )
             if self._fan_auto_join is not None:
-                self._hub.set_digital(self._fan_auto_join, False)
+                await self._hub.set_digital_helper(
+                    self._fan_auto_join, False, self._pulsed
+                )
 
     async def async_set_temperature(self, **kwargs):
         if self._heat_sp_join is not None:
