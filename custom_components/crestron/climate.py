@@ -38,6 +38,7 @@ from .const import (
     CONF_C2_JOIN,
     CONF_FA_JOIN,
     CONF_PULSED,
+    CONF_DIVISOR,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -45,7 +46,7 @@ _LOGGER = logging.getLogger(__name__)
 PLATFORM_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_NAME): cv.string,
-        vol.Required(CONF_PULSED): cv.boolean,
+        vol.Optional(CONF_PULSED): cv.boolean,
         vol.Optional(CONF_HEAT_SP_JOIN): cv.positive_int,
         vol.Optional(CONF_COOL_SP_JOIN): cv.positive_int,
         vol.Optional(CONF_REG_TEMP_JOIN): cv.positive_int,
@@ -60,6 +61,7 @@ PLATFORM_SCHEMA = vol.Schema(
         vol.Optional(CONF_C1_JOIN): cv.positive_int,
         vol.Optional(CONF_C2_JOIN): cv.positive_int,
         vol.Optional(CONF_FA_JOIN): cv.positive_int,
+        vol.Optional(CONF_DIVISOR): int,
     },
     extra=vol.ALLOW_EXTRA,
 )
@@ -75,7 +77,8 @@ class CrestronThermostat(ClimateEntity):
     def __init__(self, hub, config, unit):
         self._hub = hub
 
-        self._pulsed = config.get(CONF_PULSED)
+        self._pulsed = config.get(CONF_PULSED, False)
+        self._divisor = config.get(CONF_DIVISOR, 1)
 
         self._fans = []
         features = [ClimateEntityFeature.TURN_OFF, ClimateEntityFeature.TURN_ON]
@@ -146,6 +149,10 @@ class CrestronThermostat(ClimateEntity):
         return self._hub.is_available()
 
     @property
+    def unique_id(self):
+        return "climate-" + str(self.name)
+
+    @property
     def name(self):
         return self._name
 
@@ -171,26 +178,26 @@ class CrestronThermostat(ClimateEntity):
 
     @property
     def current_temperature(self):
-        return self._hub.get_analog(self._reg_temp_join) / 10
+        return self._hub.get_analog(self._reg_temp_join) / self._divisor
 
     @property
     def target_temperature(self):
         if self._heat_sp_join is not None and self.hvac_mode == HVAC_MODE_HEAT:
-            return self._hub.get_analog(self._heat_sp_join) / 10
+            return self._hub.get_analog(self._heat_sp_join) / self._divisor
         if self._cool_sp_join is not None and self.hvac_mode == HVAC_MODE_COOL:
-            return self._hub.get_analog(self._heat_sp_join) / 10
+            return self._hub.get_analog(self._heat_sp_join) / self._divisor
         return None
 
     @property
     def target_temperature_high(self):
         if self._cool_sp_join is not None:
-            return self._hub.get_analog(self._cool_sp_join) / 10
+            return self._hub.get_analog(self._cool_sp_join) / self._divisor
         return None
 
     @property
     def target_temperature_low(self):
         if self._heat_sp_join is not None:
-            return self._hub.get_analog(self._heat_sp_join) / 10
+            return self._hub.get_analog(self._heat_sp_join) / self._divisor
         return None
 
     @property
@@ -331,9 +338,9 @@ class CrestronThermostat(ClimateEntity):
     async def async_set_temperature(self, **kwargs):
         if self._heat_sp_join is not None:
             self._hub.set_analog(
-                self._heat_sp_join, int(kwargs["target_temp_low"]) * 10
+                self._heat_sp_join, int(kwargs["target_temp_low"]) * self._divisor
             )
         if self._cool_sp_join is not None:
             self._hub.set_analog(
-                self._cool_sp_join, int(kwargs["target_temp_high"]) * 10
+                self._cool_sp_join, int(kwargs["target_temp_high"]) * self._divisor
             )
