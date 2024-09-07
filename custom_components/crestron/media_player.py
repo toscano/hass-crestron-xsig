@@ -126,6 +126,7 @@ class CrestronRoom(MediaPlayerEntity):
 
     @property
     def volume_level(self):
+        _LOGGER.info("Volume is: %s", self._hub.get_analog(self._volume_level_join))
         return self._hub.get_analog(self._volume_level_join) / 65535
 
     async def async_mute_volume(self, mute):
@@ -140,6 +141,7 @@ class CrestronRoom(MediaPlayerEntity):
     @property
     def source(self):
         source_num = self._hub.get_analog(self._source_number_join)
+        _LOGGER.info("Source number: %s", source_num)
         if source_num == 0:
             return None
         else:
@@ -147,11 +149,13 @@ class CrestronRoom(MediaPlayerEntity):
 
     async def async_select_source(self, source):
         for input_num, name in self._sources.items():
+            _LOGGER.info("Input: %s %s", input_num, name)
             if name == source:
                 self._hub.set_analog(self._source_number_join, int(input_num))
 
     async def async_set_volume_level(self, volume):
-        return self._hub.set_analog(self._volume_level_join, (volume / 65535))
+        _LOGGER.info("Volume: %s %s", volume)
+        return self._hub.set_analog(self._volume_level_join, volume * 65535)
 
     async def async_turn_on(self):
         self._hub.set_digital(self._on_join, 1)
