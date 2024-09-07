@@ -22,7 +22,8 @@ from .const import (
     CONF_VOLUME_UP_JOIN,
     CONF_VOLUME_DOWN_JOIN,
     CONF_OFF_JOIN,
-    CONF_SOURCE_NUM_JOIN
+    CONF_SOURCE_NUM_JOIN,
+    CONF_SOURCES
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -41,7 +42,8 @@ PLATFORM_SCHEMA = vol.Schema(
         vol.Required(CONF_VOLUME_UP_JOIN): cv.positive_int,
         vol.Required(CONF_VOLUME_DOWN_JOIN): cv.positive_int,
         vol.Required(CONF_OFF_JOIN): cv.positive_int,
-        vol.Required(CONF_VOLUME_JOIN): cv.positive_int
+        vol.Required(CONF_VOLUME_JOIN): cv.positive_int,
+        vol.Required(CONF_SOURCES): SOURCES_SCHEMA
     },
     extra=vol.ALLOW_EXTRA,
 )
@@ -61,13 +63,13 @@ class CrestronRoom(MediaPlayerEntity):
             SUPPORT_VOLUME_MUTE
             | SUPPORT_VOLUME_STEP
             | SUPPORT_TURN_OFF
-            | SUPPORT_TURN_ON
         )
         self._mute_join = config.get(CONF_MUTE_JOIN)
         self._volume_up_join = config.get(CONF_VOLUME_UP_JOIN)
         self._volume_down_join = config.get(CONF_VOLUME_DOWN_JOIN)
         self._volume_level_join = config.get(CONF_VOLUME_JOIN)
         self._source_number_join = config.get(CONF_SOURCE_NUM_JOIN)
+        self._sources = config.get(CONF_SOURCES)
         self._off_join = config.get(CONF_OFF_JOIN)
 
     async def async_added_to_hass(self):
@@ -123,10 +125,22 @@ class CrestronRoom(MediaPlayerEntity):
         await asyncio.sleep(0.05)
         self._hub.set_digital(self._mute_join, 0)
 
-    async def async_turn_on(self):
-        self._hub.set_digital(self._source_number_join, 1)
-        await asyncio.sleep(0.05)
-        self._hub.set_digital(self._source_number_join, 0)
+    @property
+    def source_list(self):
+        return list(self._sources.values())
+
+    @property
+    def source(self):
+        source_num = self._hub.get_analog(self._source_number_join)
+        if source_num == 0:
+            return None
+        else:
+            return self._sources[source_num]
+
+    async def async_select_source(self, source):
+        for input_num, name in self._sources.items():
+            if name == source:
+                self._hub.set_analog(self._source_number_join, input_num)
 
     async def async_turn_off(self):
         self._hub.set_digital(self._off_join, 1)
