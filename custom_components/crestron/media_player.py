@@ -12,6 +12,8 @@ from homeassistant.components.media_player import (
     SUPPORT_TURN_ON,
     SUPPORT_VOLUME_MUTE,
     SUPPORT_VOLUME_STEP,
+    SUPPORT_VOLUME_SET,
+    SUPPORT_SELECT_SOURCE
 )
 from homeassistant.const import STATE_ON, STATE_OFF, CONF_NAME
 from .const import (
@@ -23,7 +25,8 @@ from .const import (
     CONF_VOLUME_DOWN_JOIN,
     CONF_OFF_JOIN,
     CONF_SOURCE_NUM_JOIN,
-    CONF_SOURCES
+    CONF_SOURCES,
+    CONF_ON_JOIN
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -43,6 +46,7 @@ PLATFORM_SCHEMA = vol.Schema(
         vol.Required(CONF_VOLUME_DOWN_JOIN): cv.positive_int,
         vol.Required(CONF_OFF_JOIN): cv.positive_int,
         vol.Required(CONF_VOLUME_JOIN): cv.positive_int,
+        vol.Required(CONF_ON_JOIN): cv.positive_int,
         vol.Required(CONF_SOURCES): SOURCES_SCHEMA
     },
     extra=vol.ALLOW_EXTRA,
@@ -63,6 +67,9 @@ class CrestronRoom(MediaPlayerEntity):
             SUPPORT_VOLUME_MUTE
             | SUPPORT_VOLUME_STEP
             | SUPPORT_TURN_OFF
+            | SUPPORT_TURN_ON
+            | SUPPORT_VOLUME_SET
+            | SUPPORT_SELECT_SOURCE
         )
         self._mute_join = config.get(CONF_MUTE_JOIN)
         self._volume_up_join = config.get(CONF_VOLUME_UP_JOIN)
@@ -71,6 +78,7 @@ class CrestronRoom(MediaPlayerEntity):
         self._source_number_join = config.get(CONF_SOURCE_NUM_JOIN)
         self._sources = config.get(CONF_SOURCES)
         self._off_join = config.get(CONF_OFF_JOIN)
+        self._on_join = config.get(CONF_ON_JOIN)
 
     async def async_added_to_hass(self):
         self._hub.register_callback(self.process_callback)
@@ -141,6 +149,14 @@ class CrestronRoom(MediaPlayerEntity):
         for input_num, name in self._sources.items():
             if name == source:
                 self._hub.set_analog(self._source_number_join, input_num)
+
+    async def async_set_volume_level(self, volume):
+        return self._hub.set_analog(self._volume_level_join, (self.volume * 65535))
+
+    async def async_turn_on(self):
+        self._hub.set_digital(self._on_join, 1)
+        await asyncio.sleep(0.05)
+        self._hub.set_digital(self._on_join, 0)
 
     async def async_turn_off(self):
         self._hub.set_digital(self._off_join, 1)
