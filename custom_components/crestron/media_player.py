@@ -147,7 +147,7 @@ class CrestronRoom(MediaPlayerEntity):
         if source_num == 0:
             return None
         else:
-            return self._sources[source_num]
+            return self._sources.get(source_num, None)
 
     async def async_select_source(self, source):
         for input_num, name in self._sources.items():
