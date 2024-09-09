@@ -80,16 +80,16 @@ class CrestronThermostat(ClimateEntity):
         self._pulsed = config.get(CONF_PULSED, False)
         self._divisor = config.get(CONF_DIVISOR, 1)
 
-        self._fans = []
+        self._fan_modes = []
         features = [ClimateEntityFeature.TURN_OFF, ClimateEntityFeature.TURN_ON]
         if config.get(CONF_FAN_ON_JOIN):
-            self._fans.append(FAN_ON)
+            self._fan_modes.append(FAN_ON)
             features.append(ClimateEntityFeature.FAN_MODE)
         if config.get(CONF_FAN_AUTO_JOIN):
-            self._fans.append(FAN_AUTO)
+            self._fan_modes.append(FAN_AUTO)
             features.append(ClimateEntityFeature.FAN_MODE)
-        if len(self._fans) == 0:
-            self._fans = None
+        if len(self._fan_modes) == 0:
+            self._fan_modes = None
 
         self._hvac_modes = []
         if config.get(CONF_MODE_HEAT_JOIN):

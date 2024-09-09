@@ -157,9 +157,9 @@ class CrestronXsig:
             ):
                 self.set_digital(join, True)
                 await asyncio.sleep(0.05)
-                self.set_digital(self.join, False)
+                self.set_digital(join, False)
         else:
-            self.set_digital(self.join, value=value)
+            self.set_digital(join, value=value)
 
     def set_digital(self, join, value):
         """Send Digital Join to Crestron XSIG symbol"""
