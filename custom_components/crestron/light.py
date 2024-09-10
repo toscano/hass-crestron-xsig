@@ -1,13 +1,21 @@
 """Platform for Crestron Light integration."""
-import asyncio
 
-import voluptuous as vol
+import asyncio
 import logging
 
-import homeassistant.helpers.config_validation as cv
-from homeassistant.components.light import LightEntity, LightEntityFeature, ColorMode, ATTR_TRANSITION, ATTR_BRIGHTNESS
+import voluptuous as vol
+
+from homeassistant.components.light import (
+    ATTR_BRIGHTNESS,
+    ATTR_TRANSITION,
+    ColorMode,
+    LightEntity,
+    LightEntityFeature,
+)
 from homeassistant.const import CONF_NAME, CONF_TYPE
-from .const import HUB, DOMAIN, CONF_JOIN
+import homeassistant.helpers.config_validation as cv
+
+from .const import CONF_JOIN, DOMAIN, HUB
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -15,10 +23,11 @@ PLATFORM_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_NAME): cv.string,
         vol.Required(CONF_TYPE): vol.In(["brightness", "onoff"]),
-        vol.Required(CONF_JOIN): cv.positive_int,           
+        vol.Required(CONF_JOIN): cv.positive_int,
     },
     extra=vol.ALLOW_EXTRA,
 )
+
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     hub = hass.data[DOMAIN][HUB]
@@ -56,9 +65,9 @@ class CrestronLight(LightEntity):
     @property
     def unique_id(self):
         if self._color_mode == ColorMode.BRIGHTNESS:
-            return 'light-' + str(self._join)
+            return "light-" + str(self._join)
         else:
-            return 'toggle-light-' + str(self._join)
+            return "toggle-light-" + str(self._join)
 
     @property
     def color_mode(self):
@@ -131,7 +140,9 @@ class CrestronLight(LightEntity):
         if transition_time == 0:
             self._hub.set_analog(self._join, int(brightness))
         else:
-            incr_per_step = (brightness - self._hub.get_analog(self._join)) / (transition_time * 20)
+            incr_per_step = (brightness - self._hub.get_analog(self._join)) / (
+                transition_time * 20
+            )
             current_brightness = self._hub.get_analog(self._join)
             for i in range(transition_time * 20):
                 current_brightness = current_brightness + incr_per_step

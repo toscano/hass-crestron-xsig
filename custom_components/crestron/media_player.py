@@ -1,38 +1,34 @@
 """Platform for Crestron Media Player integration."""
-"""Modified for use for Crestron AADS"""
 
-import voluptuous as vol
-import logging
 import asyncio
+import logging
 import math
 
-import homeassistant.helpers.config_validation as cv
+import voluptuous as vol
+
 from homeassistant.components.media_player import (
     MediaPlayerEntity,
-    SUPPORT_TURN_OFF,
-    SUPPORT_TURN_ON,
-    SUPPORT_VOLUME_MUTE,
-    SUPPORT_VOLUME_STEP,
-    SUPPORT_VOLUME_SET,
-    SUPPORT_SELECT_SOURCE
+    MediaPlayerEntityFeature,
 )
-from homeassistant.const import STATE_ON, STATE_OFF, CONF_NAME
+from homeassistant.const import CONF_NAME, STATE_OFF, STATE_ON
+import homeassistant.helpers.config_validation as cv
+
 from .const import (
-    HUB,
-    DOMAIN,
     CONF_MUTE_JOIN,
-    CONF_VOLUME_JOIN,
-    CONF_VOLUME_UP_JOIN,
-    CONF_VOLUME_DOWN_JOIN,
     CONF_OFF_JOIN,
+    CONF_ON_JOIN,
     CONF_SOURCE_NUM_JOIN,
     CONF_SOURCES,
-    CONF_ON_JOIN
+    CONF_VOLUME_DOWN_JOIN,
+    CONF_VOLUME_JOIN,
+    CONF_VOLUME_UP_JOIN,
+    DOMAIN,
+    HUB,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
-SOURCES_SCHEMA = vol.Schema (
+SOURCES_SCHEMA = vol.Schema(
     {
         cv.positive_int: cv.string,
     }
@@ -41,17 +37,18 @@ SOURCES_SCHEMA = vol.Schema (
 PLATFORM_SCHEMA = vol.Schema(
     {
         vol.Required(CONF_NAME): cv.string,
-        vol.Required(CONF_MUTE_JOIN): cv.positive_int,           
-        vol.Required(CONF_SOURCE_NUM_JOIN): cv.positive_int,           
+        vol.Required(CONF_MUTE_JOIN): cv.positive_int,
+        vol.Required(CONF_SOURCE_NUM_JOIN): cv.positive_int,
         vol.Required(CONF_VOLUME_UP_JOIN): cv.positive_int,
         vol.Required(CONF_VOLUME_DOWN_JOIN): cv.positive_int,
         vol.Required(CONF_OFF_JOIN): cv.positive_int,
         vol.Required(CONF_VOLUME_JOIN): cv.positive_int,
         vol.Required(CONF_ON_JOIN): cv.positive_int,
-        vol.Required(CONF_SOURCES): SOURCES_SCHEMA
+        vol.Required(CONF_SOURCES): SOURCES_SCHEMA,
     },
     extra=vol.ALLOW_EXTRA,
 )
+
 
 async def async_setup_platform(hass, config, async_add_entities, discovery_info=None):
     hub = hass.data[DOMAIN][HUB]
@@ -65,12 +62,12 @@ class CrestronRoom(MediaPlayerEntity):
         self._name = config.get(CONF_NAME)
         self._device_class = "speaker"
         self._supported_features = (
-            SUPPORT_VOLUME_MUTE
-            | SUPPORT_VOLUME_STEP
-            | SUPPORT_TURN_OFF
-            | SUPPORT_TURN_ON
-            | SUPPORT_VOLUME_SET
-            | SUPPORT_SELECT_SOURCE
+            MediaPlayerEntityFeature.VOLUME_MUTE
+            | MediaPlayerEntityFeature.VOLUME_STEP
+            | MediaPlayerEntityFeature.TURN_OFF
+            | MediaPlayerEntityFeature.TURN_ON
+            | MediaPlayerEntityFeature.VOLUME_SET
+            | MediaPlayerEntityFeature.SELECT_SOURCE
         )
         self._mute_join = config.get(CONF_MUTE_JOIN)
         self._volume_up_join = config.get(CONF_VOLUME_UP_JOIN)
@@ -100,7 +97,7 @@ class CrestronRoom(MediaPlayerEntity):
 
     @property
     def unique_id(self):
-       return 'media-player-' + str(self._source_number_join)
+        return "media-player-" + str(self._source_number_join)
 
     @property
     def should_poll(self):
