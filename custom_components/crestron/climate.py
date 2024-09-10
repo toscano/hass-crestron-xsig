@@ -6,14 +6,8 @@ import logging
 import homeassistant.helpers.config_validation as cv
 from homeassistant.components.climate import ClimateEntityFeature, ClimateEntity
 from homeassistant.components.climate.const import (
-    HVAC_MODE_OFF,
-    HVAC_MODE_HEAT,
-    HVAC_MODE_COOL,
-    HVAC_MODE_HEAT_COOL,
-    CURRENT_HVAC_OFF,
-    CURRENT_HVAC_HEAT,
-    CURRENT_HVAC_COOL,
-    CURRENT_HVAC_IDLE,
+    HVACMode,
+    HVACAction,
     FAN_ON,
     FAN_AUTO,
 )
@@ -91,18 +85,18 @@ class CrestronThermostat(ClimateEntity):
         if len(self._fan_modes) == 0:
             self._fan_modes = None
 
-        self._hvac_modes = []
+        self._hvac_modes: HVACMode = []
         if config.get(CONF_MODE_HEAT_JOIN):
-            self._hvac_modes.append(HVAC_MODE_HEAT)
+            self._hvac_modes.append(HVACMode.HEAT)
             features.append(ClimateEntityFeature.TARGET_TEMPERATURE)
         if config.get(CONF_MODE_COOL_JOIN):
-            self._hvac_modes.append(HVAC_MODE_COOL)
+            self._hvac_modes.append(HVACMode.COOL)
             features.append(ClimateEntityFeature.TARGET_TEMPERATURE)
         if config.get(CONF_MODE_AUTO_JOIN):
-            self._hvac_modes.append(HVAC_MODE_HEAT_COOL)
+            self._hvac_modes.append(HVACMode.HEAT_COOL)
             features.append(ClimateEntityFeature.TARGET_TEMPERATURE_RANGE)
         if config.get(CONF_MODE_OFF_JOIN):
-            self._hvac_modes.append(HVAC_MODE_OFF)
+            self._hvac_modes.append(HVACMode.OFF)
         if len(self._hvac_modes) == 0:
             self._hvac_modes = None
 
@@ -182,9 +176,9 @@ class CrestronThermostat(ClimateEntity):
 
     @property
     def target_temperature(self):
-        if self._heat_sp_join is not None and self.hvac_mode == HVAC_MODE_HEAT:
+        if self._heat_sp_join is not None and self.hvac_mode == HVACMode.HEAT:
             return self._hub.get_analog(self._heat_sp_join) / self._divisor
-        if self._cool_sp_join is not None and self.hvac_mode == HVAC_MODE_COOL:
+        if self._cool_sp_join is not None and self.hvac_mode == HVACMode.COOL:
             return self._hub.get_analog(self._heat_sp_join) / self._divisor
         return None
 
@@ -201,24 +195,24 @@ class CrestronThermostat(ClimateEntity):
         return None
 
     @property
-    def hvac_mode(self):
+    def hvac_mode(self) -> HVACMode:
         if self._mode_auto_join is not None and self._hub.get_digital(
             self._mode_auto_join
         ):
-            return HVAC_MODE_HEAT_COOL
+            return HVACMode.HEAT_COOL
         if self._mode_heat_join is not None and self._hub.get_digital(
             self._mode_heat_join
         ):
-            return HVAC_MODE_HEAT
+            return HVACMode.HEAT
         if self._mode_cool_join is not None and self._hub.get_digital(
             self._mode_cool_join
         ):
-            return HVAC_MODE_COOL
+            return HVACMode.COOL
         if self._mode_off_join is not None and self._hub.get_digital(
             self._mode_off_join
         ):
-            return HVAC_MODE_OFF
-        return HVAC_MODE_OFF
+            return HVACMode.OFF
+        return HVACMode.OFF
 
     @property
     def fan_mode(self):
@@ -229,24 +223,24 @@ class CrestronThermostat(ClimateEntity):
         return None
 
     @property
-    def hvac_action(self):
+    def hvac_action(self) -> HVACAction:
         if (self._h1_join is not None and self._hub.get_digital(self._h1_join)) or (
             self._h2_join is not None and self._hub.get_digital(self._h2_join)
         ):
-            return CURRENT_HVAC_HEAT
+            return HVACAction.HEATING
         if (self._c1_join is not None and self._hub.get_digital(self._c1_join)) or (
             self._c2_join is not None and self._hub.get_digital(self._c2_join)
         ):
-            return CURRENT_HVAC_COOL
+            return HVACAction.COOLING
 
         if self._mode_off_join is not None and self._hub.get_digital(
             self._mode_off_join
         ):
-            return CURRENT_HVAC_OFF
-        return CURRENT_HVAC_IDLE
+            return HVACAction.OFF
+        return HVACAction.IDLE
 
     async def async_set_hvac_mode(self, hvac_mode):
-        if hvac_mode == HVAC_MODE_HEAT_COOL:
+        if hvac_mode == HVACMode.HEAT_COOL:
             if self._mode_auto_join is not None:
                 await self._hub.set_digital_helper(
                     self._mode_auto_join, True, self._pulsed
@@ -263,7 +257,7 @@ class CrestronThermostat(ClimateEntity):
                 await self._hub.set_digital_helper(
                     self._mode_heat_join, False, self._pulsed
                 )
-        if hvac_mode == HVAC_MODE_HEAT:
+        if hvac_mode == HVACMode.HEAT:
             if self._mode_auto_join is not None:
                 await self._hub.set_digital_helper(
                     self._mode_auto_join, False, self._pulsed
@@ -280,7 +274,7 @@ class CrestronThermostat(ClimateEntity):
                 await self._hub.set_digital_helper(
                     self._mode_heat_join, True, self._pulsed
                 )
-        if hvac_mode == HVAC_MODE_COOL:
+        if hvac_mode == HVACMode.COOL:
             if self._mode_auto_join is not None:
                 await self._hub.set_digital_helper(
                     self._mode_auto_join, False, self._pulsed
@@ -297,7 +291,7 @@ class CrestronThermostat(ClimateEntity):
                 await self._hub.set_digital_helper(
                     self._mode_heat_join, False, self._pulsed
                 )
-        if hvac_mode == HVAC_MODE_OFF:
+        if hvac_mode == HVACMode.OFF:
             if self._mode_auto_join is not None:
                 await self._hub.set_digital_helper(
                     self._mode_auto_join, False, self._pulsed
@@ -336,11 +330,11 @@ class CrestronThermostat(ClimateEntity):
                 )
 
     async def async_set_temperature(self, **kwargs):
-        if self._heat_sp_join is not None:
+        if self._heat_sp_join is not None and "target_temp_low" in kwargs:
             self._hub.set_analog(
                 self._heat_sp_join, int(kwargs["target_temp_low"]) * self._divisor
             )
-        if self._cool_sp_join is not None:
+        if self._cool_sp_join is not None and "target_temp_high" in kwargs:
             self._hub.set_analog(
                 self._cool_sp_join, int(kwargs["target_temp_high"]) * self._divisor
             )
