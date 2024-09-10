@@ -1,38 +1,41 @@
 """Platform for Crestron Thermostat integration."""
 
-import voluptuous as vol
 import logging
 
-import homeassistant.helpers.config_validation as cv
-from homeassistant.components.climate import ClimateEntityFeature, ClimateEntity
-from homeassistant.components.climate.const import (
-    HVACMode,
-    HVACAction,
-    FAN_ON,
-    FAN_AUTO,
-)
+import voluptuous as vol
 
-from homeassistant.const import CONF_NAME
+from homeassistant.components.climate import (
+    ATTR_TARGET_TEMP_HIGH,
+    ATTR_TARGET_TEMP_LOW,
+    FAN_AUTO,
+    FAN_ON,
+    ClimateEntity,
+    ClimateEntityFeature,
+    HVACAction,
+    HVACMode,
+)
+from homeassistant.const import ATTR_TEMPERATURE, CONF_NAME
+import homeassistant.helpers.config_validation as cv
 
 from .const import (
-    HUB,
-    DOMAIN,
-    CONF_HEAT_SP_JOIN,
-    CONF_COOL_SP_JOIN,
-    CONF_REG_TEMP_JOIN,
-    CONF_MODE_HEAT_JOIN,
-    CONF_MODE_COOL_JOIN,
-    CONF_MODE_AUTO_JOIN,
-    CONF_MODE_OFF_JOIN,
-    CONF_FAN_ON_JOIN,
-    CONF_FAN_AUTO_JOIN,
-    CONF_H1_JOIN,
-    CONF_H2_JOIN,
     CONF_C1_JOIN,
     CONF_C2_JOIN,
-    CONF_FA_JOIN,
-    CONF_PULSED,
+    CONF_COOL_SP_JOIN,
     CONF_DIVISOR,
+    CONF_FA_JOIN,
+    CONF_FAN_AUTO_JOIN,
+    CONF_FAN_ON_JOIN,
+    CONF_H1_JOIN,
+    CONF_H2_JOIN,
+    CONF_HEAT_SP_JOIN,
+    CONF_MODE_AUTO_JOIN,
+    CONF_MODE_COOL_JOIN,
+    CONF_MODE_HEAT_JOIN,
+    CONF_MODE_OFF_JOIN,
+    CONF_PULSED,
+    CONF_REG_TEMP_JOIN,
+    DOMAIN,
+    HUB,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -330,11 +333,26 @@ class CrestronThermostat(ClimateEntity):
                 )
 
     async def async_set_temperature(self, **kwargs):
-        if self._heat_sp_join is not None and "target_temp_low" in kwargs:
-            self._hub.set_analog(
-                self._heat_sp_join, int(kwargs["target_temp_low"]) * self._divisor
-            )
-        if self._cool_sp_join is not None and "target_temp_high" in kwargs:
-            self._hub.set_analog(
-                self._cool_sp_join, int(kwargs["target_temp_high"]) * self._divisor
-            )
+        if ATTR_TEMPERATURE in kwargs:
+            if self.hvac_mode == HVACMode.HEAT and self._heat_sp_join is not None:
+                self._hub.set_analog(
+                    self._heat_sp_join,
+                    int(kwargs[ATTR_TEMPERATURE]) * self._divisor,
+                )
+            if self.hvac_mode == HVACMode.COOL and self._cool_sp_join is not None:
+                self._hub.set_analog(
+                    self._cool_sp_join,
+                    int(kwargs[ATTR_TEMPERATURE]) * self._divisor,
+                )
+
+        if ATTR_TARGET_TEMP_LOW in kwargs and ATTR_TARGET_TEMP_HIGH in kwargs:
+            if self._cool_sp_join is not None:
+                self._hub.set_analog(
+                    self._cool_sp_join,
+                    int(kwargs[ATTR_TARGET_TEMP_HIGH]) * self._divisor,
+                )
+            if self._heat_sp_join is not None:
+                self._hub.set_analog(
+                    self._heat_sp_join,
+                    int(kwargs[ATTR_TARGET_TEMP_LOW]) * self._divisor,
+                )
