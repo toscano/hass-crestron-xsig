@@ -1,29 +1,29 @@
 """Platform for Crestron Media Player integration."""
 
-"""Modified for use for Crestron AADS"""
-
-import voluptuous as vol
-import logging
 import asyncio
+import logging
 import math
 
-import homeassistant.helpers.config_validation as cv
+import voluptuous as vol
+
 from homeassistant.components.media_player import (
-    MediaPlayerEntityFeature,
     MediaPlayerEntity,
+    MediaPlayerEntityFeature,
 )
-from homeassistant.const import STATE_ON, STATE_OFF, CONF_NAME
+from homeassistant.const import CONF_NAME, STATE_OFF, STATE_ON
+import homeassistant.helpers.config_validation as cv
+
 from .const import (
-    HUB,
-    DOMAIN,
     CONF_MUTE_JOIN,
-    CONF_VOLUME_JOIN,
-    CONF_VOLUME_UP_JOIN,
-    CONF_VOLUME_DOWN_JOIN,
     CONF_OFF_JOIN,
+    CONF_ON_JOIN,
     CONF_SOURCE_NUM_JOIN,
     CONF_SOURCES,
-    CONF_ON_JOIN,
+    CONF_VOLUME_DOWN_JOIN,
+    CONF_VOLUME_JOIN,
+    CONF_VOLUME_UP_JOIN,
+    DOMAIN,
+    HUB,
 )
 
 _LOGGER = logging.getLogger(__name__)
