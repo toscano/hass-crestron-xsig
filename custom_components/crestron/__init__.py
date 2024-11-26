@@ -174,9 +174,9 @@ class CrestronHub:
                         # Digital Join
                         if join[:1] == "d":
                             value = None
-                            if update_result == STATE_ON or update_result == "True":
+                            if update_result in [STATE_ON, "True", "true"]:
                                 value = True
-                            elif update_result == STATE_OFF or update_result == "False":
+                            elif update_result in [STATE_OFF, "False", "false"]:
                                 value = False
                             if value is not None:
                                 _LOGGER.debug(
@@ -203,9 +203,9 @@ class CrestronHub:
             # Digital Join
             if join[:1] == "d":
                 value = None
-                if result == STATE_ON or result == "True":
+                if result in [STATE_ON, "True", "true"]:
                     value = True
-                elif result == STATE_OFF or result == "False":
+                elif result in [STATE_OFF, "False", "false"]:
                     value = False
                 if value is not None:
                     _LOGGER.debug(
