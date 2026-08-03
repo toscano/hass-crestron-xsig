@@ -121,6 +121,13 @@ class CrestronHub:
             )
         if CONF_FROM_HUB in config:
             self.from_hub = config[CONF_FROM_HUB]
+            # The joins that actually have a script attached.  Only these are
+            # worth buffering while Home Assistant starts.
+            self.from_hub_joins = {join[CONF_JOIN] for join in self.from_hub}
+            # Join changes seen before the core reached running.  Keyed by join
+            # so only the newest value is kept, and ordered by when each join
+            # last changed.
+            self.pending_joins = {}
             self.hub.register_callback(self.join_change_callback)
 
     async def start(self):
@@ -134,20 +141,45 @@ class CrestronHub:
         await self.hub.stop()
 
     async def join_change_callback(self, cbtype, value):
-        """ Call service for tracked join change (from_hub)"""
-        # The control system connects and dumps every join value as soon as the
-        # TCP server is listening, which is well before Home Assistant has
-        # finished starting.  The services these scripts call are not
-        # registered yet, so running them now would only raise ServiceNotFound.
-        # Join values are still cached by the hub, so entities pick them up as
-        # soon as they are added.  Note hass.is_running is True while starting,
-        # so the core state has to be checked directly.
+        """ Buffer or run the script for a tracked join change (from_hub)
+
+        The control system connects and dumps every join value as soon as the
+        TCP server is listening, which is well before Home Assistant has
+        finished starting.  The services these scripts call are not registered
+        yet, so changes seen during startup are held back and replayed against
+        the first change that arrives once the core is running.  Note
+        hass.is_running is True while starting, so the core state has to be
+        checked directly.
+        """
         if self.hass.state is not CoreState.running:
-            _LOGGER.debug(
-                f"Not running from_joins script for {cbtype} = {value}: "
-                f"Home Assistant is {self.hass.state}"
-            )
+            if cbtype in self.from_hub_joins:
+                # Re-insert so the buffer stays ordered by last change, holding
+                # only the newest value for each join.
+                self.pending_joins.pop(cbtype, None)
+                self.pending_joins[cbtype] = value
+                _LOGGER.debug(
+                    f"Buffering {cbtype} = {value} until Home Assistant has "
+                    f"started (currently {self.hass.state})"
+                )
             return
+
+        if self.pending_joins:
+            # Take the buffer before replaying: the scripts below are user
+            # configuration and must not see a half-drained buffer if one of
+            # them causes another join change.
+            pending = self.pending_joins
+            self.pending_joins = {}
+            _LOGGER.info(
+                f"Home Assistant has started.  Replaying {len(pending)} join "
+                f"change(s) buffered during startup, ending with {cbtype}"
+            )
+            for pending_type, pending_value in pending.items():
+                await self.run_from_joins(pending_type, pending_value)
+
+        await self.run_from_joins(cbtype, value)
+
+    async def run_from_joins(self, cbtype, value):
+        """ Call the configured service/script for a join change (from_hub)"""
         for join in self.from_hub:
             if cbtype == join[CONF_JOIN]:
                 # For digital joins, ignore on>off transitions  (avoids double calls to service for momentary presses)
