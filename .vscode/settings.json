@@ -1,3 +1,17 @@
 {
-    "python.formatting.provider": "black"
+    "python.formatting.provider": "black",
+    "cSpell.words": [
+        "Chromecast",
+        "Crestron",
+        "DIMEX",
+        "HVAC",
+        "Intersystem",
+        "QMTDC",
+        "setpoints",
+        "THSTAT",
+        "THSTATs",
+        "TSTAT",
+        "volumio",
+        "XSIG"
+    ]
 }

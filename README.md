@@ -1,35 +1,40 @@
 # home-assistant-crestron-component
+
 Integration for Home Assistant for the Crestron XSIG symbol
 
+> **A note about AI contribution to this project.** Anthropic's Claude has been used as a development assistant. Every contribution (AI or otherwise) is reviewed and tested on _real hardware_ by an experienced meat-and-bones developer with too many years of experience. Any contribution made by Claude, or any AI agent, will always be noted in the commit message with co-author attribution.
+
 Currently supported devices:
-  - Lights (dimmed or switched)
-  - Thermostats
-  - Shades, Curtains and Elevators
-  - Binary Sensor
-  - Sensor
-  - Switch
-  - Media Player
-  - Button (virtual)
+
+- Lights (dimmed or switched)
+- Thermostats
+- Shades, Curtains and Elevators
+- Binary Sensor
+- Sensor
+- Switch
+- Media Player
+- Button (virtual)
 
 ## Adding the component to Home Assistant
 
-  - Add the `crestron` directory to `config/custom_components`
-  - Add the appropriate sections to `configuration.yaml` (see below)
-  - Add a `crestron:` block to the root of your `configuration.yaml`
-    - The component acts as a TCP server, so you must specify the port number to listen on using the `port:` parameter.
-  - Restart Home Assistant
+- Add the `crestron` directory to `config/custom_components`
+- Add the appropriate sections to `configuration.yaml` (see below)
+- Add a `crestron:` block to the root of your `configuration.yaml`
+  - The component acts as a TCP server, so you must specify the port number to listen on using the `port:` parameter.
+- Restart Home Assistant
 
 ## On the control system
- - Add a TCP/IP Client device to the control system
- - Configure the client device with the IP address of Home Assistant
- - Set the port number on the TCP/IP client symbol to match what you have configured for `port:` in `configuration.yaml`
- - Wire up logic to the `Connect` signal of your TCP/IP client (or just set it to `1` to have it connected all the time)
- - Add an "Intersystem Communication" symbol (quick key = xsig).
- - Connect the TX & RX of the XSIG symbol to the TCP/IP Client.
- - Attach your Analog, Serial and Digital signals to the input/output joins.
-   - Note you can use multiple XSIGs attached to the same TCP/IP Client serials.  I found its simplest to use one for digitals and one for analogs/serials to keep the numbering simpler (see below).
 
-> Caution: Join numbers can be confusing when mixing analog/serials and digtals on the same XSIG symbol.  Even though the symbol starts numbering the digitals at "1", the XSIG will actually send the join number corresponding to where the signal appears sequentially in the entire list of signals.
+- Add a TCP/IP Client device to the control system
+- Configure the client device with the IP address of Home Assistant
+- Set the port number on the TCP/IP client symbol to match what you have configured for `port:` in `configuration.yaml`
+- Wire up logic to the `Connect` signal of your TCP/IP client (or just set it to `1` to have it connected all the time)
+- Add an "Intersystem Communication" symbol (quick key = xsig).
+- Connect the TX & RX of the XSIG symbol to the TCP/IP Client.
+- Attach your Analog, Serial and Digital signals to the input/output joins.
+  - Note you can use multiple XSIGs attached to the same TCP/IP Client serials.  I found its simplest to use one for digitals and one for analogs/serials to keep the numbering simpler (see below).
+
+> Caution: Join numbers can be confusing when mixing analog/serials and digitals on the same XSIG symbol.  Even though the symbol starts numbering the digitals at "1", the XSIG will actually send the join number corresponding to where the signal appears sequentially in the entire list of signals.
 > For example, if you have 25 analog signals followed by 10 digital signals attached to the same XSIG, the digitals will be sent as 26-35, even though they are labeled 1 - 10 on the symbol.  You can either account for this in your configuration on the HA side, or just use one symbol for Analogs and another for Digitals.
 > Since the XSIG lets you combine Analog/Serial joins on the same symbol, you can have one XSIG for Analog/Serial joins and another for digitals.  This keeps the join numbering simple.
 
@@ -42,7 +47,7 @@ crestron:
   port: 16384
 ```
 
-Then, if you want to make use of the control surface (touchpanels/kepads) syncing capability, you will need to add either a `to_joins`, a `from_joins` section, or both (see below).
+Then, if you want to make use of the control surface (touch panels/keypads) syncing capability, you will need to add either a `to_joins`, a `from_joins` section, or both (see below).
 
 Finally, add entries for each HA component/platform type to your configuration.yaml for the appropriate entity type in Home Assistant:
 
@@ -107,12 +112,12 @@ light:
     type: brightness
 ```
 
- - _join_: (required) If light supports brightness: the analog join on the XSIG symbol that represents the light's brightness. If not: the digital join on the XSIG symbol that represents the light's state.
- - _type_: (required) ```brightness``` or ```onoff```
+- _join_: (required) If light supports brightness: the analog join on the XSIG symbol that represents the light's brightness. If not: the digital join on the XSIG symbol that represents the light's state.
+- _type_: (required) ```brightness``` or ```onoff```
 
 `brightness` lights support the Home Assistant `transition` parameter.  Transitions are performed by Home Assistant, which steps the analog join 20 times per second for the duration of the transition.  Turning a `brightness` light on or off without an explicit `transition` uses a 2 second transition.
 
->Note: `onoff` lights are driven by a *pulse* — the digital join is raised and dropped again 50ms later — and only when the light is not already in the requested state.  Your control system logic must treat the join as a toggle.
+>Note: `onoff` lights are driven by a _pulse_ — the digital join is raised and dropped again 50ms later — and only when the light is not already in the requested state.  Your control system logic must treat the join as a toggle.
 
 ### Thermostat
 
@@ -142,13 +147,13 @@ climate:
     fa_join: 10
 ```
 
-Every join below is optional.  The set of joins you configure determines which capabilities the entity advertises to Home Assistant: configuring `mode_heat_join` and/or `mode_cool_join` enables a target temperature, `mode_auto_join` enables a target temperature *range*, and configuring either fan join enables fan mode selection.  Omit the joins your thermostat does not have.
+Every join below is optional.  The set of joins you configure determines which capabilities the entity advertises to Home Assistant: configuring `mode_heat_join` and/or `mode_cool_join` enables a target temperature, `mode_auto_join` enables a target temperature _range_, and configuring either fan join enables fan mode selection.  Omit the joins your thermostat does not have.
 
 - _divisor_: (optional, default 1) number to divide analog temperature joins by (and multiply setpoints by when writing).  A Crestron thermostat that reports tenths of a degree (754 = 75.4&deg;) needs `10`.
 - _pulsed_: (optional, default False) set to True if the mode and fan mode joins are driven by momentary pulses rather than held levels.  See [Pulsed vs. held joins](#pulsed-vs-held-joins).
 - _heat_sp_join_: analog join that represents the heat setpoint
 - _cool_sp_join_: analog join that represents the cool setpoint
-- _reg_temp_join_: analog join that represents the room temperature read by the thermostat.  The CHV-TSTAT calls this the "regulation temperture" because it my be derived from averaging a bunch of room temperature sensors.  This is so called because it is the temperature used by the thermostat to decide when to make calls for heating or cooling.
+- _reg_temp_join_: analog join that represents the room temperature read by the thermostat.  The CHV-TSTAT calls this the "regulation temperature" because it my be derived from averaging a bunch of room temperature sensors.  This is so called because it is the temperature used by the thermostat to decide when to make calls for heating or cooling.
 - _mode_heat_join_: digital join that is high when the thermostat is in heating mode
 - _mode_cool_join_: digital join that is high when the thermostat is in cooling mode
 - _mode_auto_join_: digital join that is high when the thermostat is in auto mode
@@ -161,7 +166,7 @@ Every join below is optional.  The set of joins you configure determines which c
 - _c2_join_: digital feedback (read-only) join that represents the state of the stage 2 cool relay
 - _fa_join_: digital feedback (read-only) join that represents the state of the stage fan relay
 
->Note: the mode and fan mode joins are read-*write*.  Changing the HVAC mode or fan mode from Home Assistant sets the join for the selected mode high and the joins for the other modes low.  Only the relay joins (`h1`/`h2`/`c1`/`c2`/`fa`) are purely feedback; they drive the "heating"/"cooling"/"idle" action shown in the UI.
+>Note: the mode and fan mode joins are read-_write_.  Changing the HVAC mode or fan mode from Home Assistant sets the join for the selected mode high and the joins for the other modes low.  Only the relay joins (`h1`/`h2`/`c1`/`c2`/`fa`) are purely feedback; they drive the "heating"/"cooling"/"idle" action shown in the UI.
 
 ### Shades, Curtains and Elevators
 
@@ -289,14 +294,14 @@ sensor:
 
 - _value_join_: (required) analog join to represent as a sensor in Home Assistant
 - _device_class_: (required) any device class [supported by the sensor](https://www.home-assistant.io/integrations/sensor/) integration.  This mostly affects how the value will be expressed in various UIs.
-- _unit_of_measurement_: (required) Unit of measurement appropriate for the device class as documented [here](https://developers.home-assistant.io/docs/core/entity/sensor/).
+- _unit_of_measurement_: (required) Unit of measurement appropriate for the device class as documented in the [developer docs](https://developers.home-assistant.io/docs/core/entity/sensor/).
 - _divisor_: (optional, default 1) number to divide the analog join by to get the correct sensor value.  For example, a crestron temperature sensor returns tenths of a degree (754 represents 75.4 degrees), so you would use a divisor of 10.
 
 >Note: `divisor` must be a whole number — a fractional value such as `655.35` is rejected by config validation.  To scale a 0-65535 join to a percent, use a `divisor` of `655` (accurate to within 0.1%) or leave the divisor at 1 and scale in a template sensor.
 
 ### Switch
 
-This could represent any digital signal on the contol system that you want to be able to control/view from HA.
+This could represent any digital signal on the control system that you want to be able to control/view from HA.
 
 ```yaml
 switch:
@@ -366,7 +371,7 @@ button:
 
 ### Pulsed vs. held joins
 
-Several platforms distinguish between a join that is *held* at the requested state and one that is *pulsed* to toggle it.  Which one you need depends on how the symbol on the control system is wired.
+Several platforms distinguish between a join that is _held_ at the requested state and one that is _pulsed_ to toggle it.  Which one you need depends on how the symbol on the control system is wired.
 
 - **Held** (`pulsed: False`): Home Assistant writes the requested value to the join and leaves it there.  Turning the entity on sets the join high; turning it off sets it low.
 - **Pulsed** (`pulsed: True`): Home Assistant raises the join and drops it again 50ms later, and only does so when the join is not already in the requested state.  Use this for symbols that take a toggle.
@@ -378,6 +383,7 @@ The `pulsed:` option is available on `switch` (required) and `climate` (optional
 If you have Crestron touch panels or keypads, it can be useful to keep certain feedback/display joins in sync with Home Assistant state and to be able to invoke Home Assistant functionality (via a script) when a button is pressed or a join changes.  This functionality was added with v0.2.  There are two directions to sync: from HA states to control system joins and from control system joins to HA (using scripts).
 
 There are two sections in `configuration.yaml` under the root `crestron:` key:
+
 - `to_joins` for syncing HA state to control system joins
 - `from_joins` for invoking HA scripts when control system joins change
 
@@ -390,11 +396,12 @@ crestron:
   ...
 ```
 
- #### From HA to the Control System
+#### From HA to the Control System
 
 The `to_joins` section will list all the joins you want to map HA state changes to.  For each join, you list either:
- - a simple `entity_id` with optional `attribute` to map entity state directly to a join.
- - a `value_template` that lets you map almost any combination of state values (including the full power of [template logic](https://www.home-assistant.io/docs/configuration/templating/)) to the listed join.
+
+- a simple `entity_id` with optional `attribute` to map entity state directly to a join.
+- a `value_template` that lets you map almost any combination of state values (including the full power of [template logic](https://www.home-assistant.io/docs/configuration/templating/)) to the listed join.
 
 ```yaml
 crestron:
@@ -414,17 +421,19 @@ crestron:
       value_template: "http://homeassistant:8123{{ state_attr('media_player.volumio', 'entity_picture') }}"
 ```
 
- - _to_joins_: begins the section
- - _join_: for each join, list the join type and number.  The type prefix is 'a' for analog joins, 'd' for digital joins and 's' for serial joins.  So s32 would be serial join #32.  The value of this join will be set to either the state/attribute of the configured entity ID or the output of the configured template.
- - _entity_id_: the entity ID to sync this join to.  If no _attribute_ is listed the join will be set to entity's state value whenever the state changes.
- - _attribute_: use the listed attribute value for the join value instead of the entity's state.
- - _value_template_: used instead of _entity_id_/_attribute_ if you need more flexibility on how to set the value (prefix/suffix or math operations) or even to set the join value based on multiple entity IDs/state values.  You have the full power of [HA templating](https://www.home-assistant.io/docs/configuration/templating/) to work with here.
+- _to_joins_: begins the section
+- _join_: for each join, list the join type and number.  The type prefix is 'a' for analog joins, 'd' for digital joins and 's' for serial joins.  So s32 would be serial join #32.  The value of this join will be set to either the state/attribute of the configured entity ID or the output of the configured template.
+- _entity_id_: the entity ID to sync this join to.  If no _attribute_ is listed the join will be set to entity's state value whenever the state changes.
+- _attribute_: use the listed attribute value for the join value instead of the entity's state.
+- _value_template_: used instead of _entity_id_/_attribute_ if you need more flexibility on how to set the value (prefix/suffix or math operations) or even to set the join value based on multiple entity IDs/state values.  You have the full power of [HA templating](https://www.home-assistant.io/docs/configuration/templating/) to work with here.
 
- >Note that when you specify an `entity_id`, all changes to that entity_id will result in a join update being sent to the control system.  When you specify a `value_template` a change to any referenced entity will trigger a join update.
+>Note that when you specify an `entity_id`, all changes to that entity_id will result in a join update being sent to the control system.  When you specify a `value_template` a change to any referenced entity will trigger a join update.
 
- >For digital (`d`) joins, the resulting value must look like a boolean: `on`, `True`, `true`, `1` are sent as high and `off`, `False`, `false`, `0` as low.  Anything else (including `unavailable` or `unknown`) is ignored and the join is left at its previous value.  Serial (`s`) join values longer than 252 characters are dropped.
+also...
 
- #### From Control System to HA
+>For digital (`d`) joins, the resulting value must look like a boolean: `on`, `True`, `true`, `1` are sent as high and `off`, `False`, `false`, `0` as low.  Anything else (including `unavailable` or `unknown`) is ignored and the join is left at its previous value.  Serial (`s`) join values longer than 252 characters are dropped.
+
+#### From Control System to HA
 
  The `from_joins` section will list all the joins you want to track from the control system.  When each join changes the configured functionality will be invoked.
 
@@ -474,8 +483,8 @@ crestron:
           source: "{{state_attr('media_player.volumio', 'source_list')[2]}}"
 ```
 
- - _from_joins_: begins the section
- - _join_: for each join, list the join type and number.  The type prefix is 'a' for analog joins, 'd' for digital joins and 's' for serial joins.  So s32 would be serial join #32.  Any change in the listed join will invoke the configured behavior.
- - _script_: This is a standard HA script.  It follows the [HA scripting sytax](https://www.home-assistant.io/docs/scripts/).  The new value of the join is available to the script as the `value` variable, as shown in the `a2` example above.
+- _from_joins_: begins the section
+- _join_: for each join, list the join type and number.  The type prefix is 'a' for analog joins, 'd' for digital joins and 's' for serial joins.  So s32 would be serial join #32.  Any change in the listed join will invoke the configured behavior.
+- _script_: This is a standard HA script.  It follows the [HA scripting syntax](https://www.home-assistant.io/docs/scripts/).  The new value of the join is available to the script as the `value` variable, as shown in the `a2` example above.
 
  >For digital joins, only the low-to-high transition runs the script.  The high-to-low transition is ignored so that a momentary button press does not fire the script twice.
