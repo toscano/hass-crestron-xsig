@@ -10,7 +10,7 @@ from homeassistant.helpers.discovery import async_load_platform
 from homeassistant.helpers.event import TrackTemplate, async_track_template_result
 from homeassistant.helpers.template import Template
 from homeassistant.helpers.script import Script
-from homeassistant.core import callback, Context
+from homeassistant.core import callback, Context, CoreState
 from homeassistant.const import EVENT_HOMEASSISTANT_STOP
 from homeassistant.const import (
     EVENT_HOMEASSISTANT_STOP,
@@ -135,6 +135,19 @@ class CrestronHub:
 
     async def join_change_callback(self, cbtype, value):
         """ Call service for tracked join change (from_hub)"""
+        # The control system connects and dumps every join value as soon as the
+        # TCP server is listening, which is well before Home Assistant has
+        # finished starting.  The services these scripts call are not
+        # registered yet, so running them now would only raise ServiceNotFound.
+        # Join values are still cached by the hub, so entities pick them up as
+        # soon as they are added.  Note hass.is_running is True while starting,
+        # so the core state has to be checked directly.
+        if self.hass.state is not CoreState.running:
+            _LOGGER.debug(
+                f"Not running from_joins script for {cbtype} = {value}: "
+                f"Home Assistant is {self.hass.state}"
+            )
+            return
         for join in self.from_hub:
             if cbtype == join[CONF_JOIN]:
                 # For digital joins, ignore on>off transitions  (avoids double calls to service for momentary presses)
