@@ -2,9 +2,9 @@
 Integration for Home Assistant for the Crestron XSIG symbol
 
 Currently supported devices:
-  - Lights
+  - Lights (dimmed or switched)
   - Thermostats
-  - Shades
+  - Shades, Curtains and Elevators
   - Binary Sensor
   - Sensor
   - Switch
@@ -50,7 +50,7 @@ Finally, add entries for each HA component/platform type to your configuration.y
 |------------------------------------------------|-------------------------------|
 | Light                                          | light                         |
 | Thermostat                                     | climate                       |
-| Shades                                         | cover                         |
+| Shades / Curtains / Elevators                  | cover                         |
 | read-only Digital Join                         | binary_sensor                 |
 | read-only Analog Join                          | sensor                        |
 | read-write Digital Join                        | switch                        |
@@ -92,6 +92,8 @@ button:
   ...
 ```
 
+In the sections below, every entity takes a _name_ parameter.  The entity id will be derived from this string (lower-cased with _ for spaces).  The friendly name will be set to this string.
+
 ### Lights
 
 This platform supports monochromatic "brightness" type lights (basically, anything that can have its brightness represented by an analog join on the control system).  I tested this with a CLX-1DIM8 panel and multiple CLW-DIMEX switches.
@@ -104,9 +106,13 @@ light:
     join: 9
     type: brightness
 ```
- - _name_: The entity id will be derived from this string (lower-cased with _ for spaces).  The friendly name will be set to this string.
- - _join_: If light supports brightness: the analog join on the XSIG symbol that represents the light's brightness. If not: the digital join on the XSIG symbol that represents the light's state.
- - _type_: ```brightness``` or ```onoff```
+
+ - _join_: (required) If light supports brightness: the analog join on the XSIG symbol that represents the light's brightness. If not: the digital join on the XSIG symbol that represents the light's state.
+ - _type_: (required) ```brightness``` or ```onoff```
+
+`brightness` lights support the Home Assistant `transition` parameter.  Transitions are performed by Home Assistant, which steps the analog join 20 times per second for the duration of the transition.  Turning a `brightness` light on or off without an explicit `transition` uses a 2 second transition.
+
+>Note: `onoff` lights are driven by a *pulse* — the digital join is raised and dropped again 50ms later — and only when the light is not already in the requested state.  Your control system logic must treat the join as a toggle.
 
 ### Thermostat
 
@@ -118,6 +124,8 @@ This platform should work with anything that looks like a CHV-TSTAT/THSTAT (anal
 climate:
   - platform: crestron
     name: "Upstairs Thermostat"
+    divisor: 10
+    pulsed: False
     heat_sp_join: 2
     cool_sp_join: 3
     reg_temp_join: 4
@@ -130,33 +138,51 @@ climate:
     h1_join: 7
     h2_join: 8
     c1_join: 9
+    c2_join: 11
     fa_join: 10
 ```
 
-- _name_: The entity id will be derived from this string (lower-cased with _ for spaces).  The friendly name will be set to this string.
+Every join below is optional.  The set of joins you configure determines which capabilities the entity advertises to Home Assistant: configuring `mode_heat_join` and/or `mode_cool_join` enables a target temperature, `mode_auto_join` enables a target temperature *range*, and configuring either fan join enables fan mode selection.  Omit the joins your thermostat does not have.
+
+- _divisor_: (optional, default 1) number to divide analog temperature joins by (and multiply setpoints by when writing).  A Crestron thermostat that reports tenths of a degree (754 = 75.4&deg;) needs `10`.
+- _pulsed_: (optional, default False) set to True if the mode and fan mode joins are driven by momentary pulses rather than held levels.  See [Pulsed vs. held joins](#pulsed-vs-held-joins).
 - _heat_sp_join_: analog join that represents the heat setpoint
 - _cool_sp_join_: analog join that represents the cool setpoint
 - _reg_temp_join_: analog join that represents the room temperature read by the thermostat.  The CHV-TSTAT calls this the "regulation temperture" because it my be derived from averaging a bunch of room temperature sensors.  This is so called because it is the temperature used by the thermostat to decide when to make calls for heating or cooling.
-- _mode_heat_join_: digital feedback (read-only) join that is high when the thermostat is in heating mode
-- _mode_heat_join_: digital feedback (read-only) join that is high when the thermostat is in cooling mode
-- _mode_auto_join_: digital feedback (read-only) join that is high when the thermostat is in auto mode
-- _mode_off_join_: digital feedback (read-only) join that is high when the thermostat mode is set to off
-- _fan_on_join_: digital feedback (read-only) join that is high when the thermostat fan mode is set to (always) on
-- _fan_on_join_: digital feedback (read-only) join that is high when the thermostat fan mode is set to auto
+- _mode_heat_join_: digital join that is high when the thermostat is in heating mode
+- _mode_cool_join_: digital join that is high when the thermostat is in cooling mode
+- _mode_auto_join_: digital join that is high when the thermostat is in auto mode
+- _mode_off_join_: digital join that is high when the thermostat mode is set to off
+- _fan_on_join_: digital join that is high when the thermostat fan mode is set to (always) on
+- _fan_auto_join_: digital join that is high when the thermostat fan mode is set to auto
 - _h1_join_: digital feedback (read-only) join that represents the state of the stage 1 heat relay
 - _h2_join_: digital feedback (read-only) join that represents the state of the stage 2 heat relay
 - _c1_join_: digital feedback (read-only) join that represents the state of the stage 1 cool relay
+- _c2_join_: digital feedback (read-only) join that represents the state of the stage 2 cool relay
 - _fa_join_: digital feedback (read-only) join that represents the state of the stage fan relay
 
-### Shades
+>Note: the mode and fan mode joins are read-*write*.  Changing the HVAC mode or fan mode from Home Assistant sets the join for the selected mode high and the joins for the other modes low.  Only the relay joins (`h1`/`h2`/`c1`/`c2`/`fa`) are purely feedback; they drive the "heating"/"cooling"/"idle" action shown in the UI.
 
-This should work with any shade that uses an analog join for position plus digital joins for is_opening/closing, is_closed and stop.  I tested with CSM-QMTDC shades.
+### Shades, Curtains and Elevators
+
+The `cover` platform covers four different kinds of device, selected with the required `type:` parameter:
+
+| `type:`           | For                                                       | Home Assistant device class |
+|-------------------|-----------------------------------------------------------|-----------------------------|
+| `analog_shade`    | Shades positioned by an analog join (e.g. CSM-QMTDC)      | shade                       |
+| `digital_shade`   | Shades driven by open/close/stop pulses only              | shade                       |
+| `digital_curtain` | As `digital_shade`, but presented as a curtain            | curtain                     |
+| `elevator`        | A two-position lift driven by set/reset joins             | (none)                      |
+
+`name`, `type`, `is_opening_join` and `is_closing_join` are required for all four types.  Which of the remaining joins you need depends on the type.
+
+#### `analog_shade`
 
 ```yaml
 cover:
   - platform: crestron
     name: "Living Room Shades"
-    type: shade
+    type: analog_shade
     pos_join: 26
     is_opening_join: 41
     is_closing_join: 42
@@ -164,12 +190,71 @@ cover:
     is_closed_join: 44
 ```
 
-- _name_: The entity id will be derived from this string (lower-cased with _ for spaces).  The friendly name will be set to this string.
-- _pos_join_: analog join that represents the shade position.  The value follow the typical definition for a Crestron analog shade (0 = closed, 65535 = open).
+- _pos_join_: analog join that represents the shade position.  The value follows the typical definition for a Crestron analog shade (0 = closed, 65535 = open).
 - _is_opening_join_: digital feedback (read-only) join that is high when shade is in the process of opening
-- _is_closing_join_: digital feedback (read-only) join that is high when shade is in the process of closed
+- _is_closing_join_: digital feedback (read-only) join that is high when shade is in the process of closing
 - _is_closed_join_: digital feedback (read-only) join that is high when shade is fully closed
-- _stop_join_: digital join that can be pulsed high to stop the shade opening/closing
+- _stop_join_: digital join that is pulsed high to stop the shade opening/closing
+
+Open and close set `pos_join` to 65535 and 0 respectively; setting a position from the UI writes `position * 655`.
+
+#### `digital_shade` / `digital_curtain`
+
+For shades that expose no position, only "go fully open", "go fully closed" and "stop".
+
+```yaml
+cover:
+  - platform: crestron
+    name: "Kitchen Curtain"
+    type: digital_curtain
+    is_opening_join: 51
+    is_closing_join: 52
+    is_moving_join: 53
+    open_full_join: 54
+    close_full_join: 55
+    stop_join: 56
+```
+
+- _is_opening_join_: digital feedback (read-only) join that is high when the last/current direction of travel is open
+- _is_closing_join_: digital feedback (read-only) join that is high when the last/current direction of travel is closed
+- _is_moving_join_: digital feedback (read-only) join that is high while the motor is running.  This is combined with the direction joins to work out whether the cover is opening, closing or closed.
+- _open_full_join_: digital join pulsed high (200ms) to drive the cover fully open
+- _close_full_join_: digital join pulsed high (200ms) to drive the cover fully closed
+- _stop_join_: digital join pulsed high (200ms) to stop the cover
+
+>Note: after a manual stop the position is unknown, so the entity reports its state as unknown until the next full open or close.
+
+#### `elevator`
+
+Models a two-position lift (for example a TV lift) as a cover, where "open" = up and "closed" = down.  The up/down commands are latched with separate set and reset joins, and a main engine join actually starts the motor.  Safety logic is expected to live on the control system; this platform only refuses to issue a new movement command while the IR sensor join is high.
+
+```yaml
+cover:
+  - platform: crestron
+    name: "Media Room Lift"
+    type: elevator
+    is_opening_join: 61
+    is_opened_join: 62
+    is_closing_join: 63
+    is_closed_join: 64
+    up_set_join: 65
+    up_reset_join: 66
+    down_set_join: 67
+    down_reset_join: 68
+    main_engine_join: 69
+    ir_sensor_join: 70
+```
+
+- _is_opening_join_: digital feedback (read-only) join that is high when the elevator is latched to travel up
+- _is_opened_join_: digital feedback (read-only) join that is high when the elevator is fully up
+- _is_closing_join_: digital feedback (read-only) join that is high when the elevator is latched to travel down
+- _is_closed_join_: digital feedback (read-only) join that is high when the elevator is fully down
+- _up_set_join_: digital join pulsed high to latch the direction to up
+- _up_reset_join_: digital join pulsed high to clear the up latch
+- _down_set_join_: digital join pulsed high to latch the direction to down
+- _down_reset_join_: digital join pulsed high to clear the down latch
+- _main_engine_join_: digital join pulsed high to start (and, from the stop command, to stop) the motor.  It is also read as feedback for whether the motor is running.
+- _ir_sensor_join_: digital feedback (read-only) join that is high when the safety sensor is obstructed.  Open and close commands are ignored while it is high.
 
 ### Binary Sensor
 
@@ -181,19 +266,16 @@ binary_sensor:
     name: "Air Compressor"
     is_on_join: 57
     device_class: power
+    inverted: False
 ```
 
-- _name_: The entity id will be derived from this string (lower-cased with _ for spaces).  The friendly name will be set to this string.
-- _is_on_join_: digital feedback (read-only) join to represent as a binary sensor in Home Assistant
-- _device_class_: any device class [supported by the binary_sensor](https://www.home-assistant.io/integrations/binary_sensor/) integration.  This mostly affects how the value will be expressed in various UIs.
+- _is_on_join_: (required) digital feedback (read-only) join to represent as a binary sensor in Home Assistant
+- _device_class_: (required) any device class [supported by the binary_sensor](https://www.home-assistant.io/integrations/binary_sensor/) integration.  This mostly affects how the value will be expressed in various UIs.
+- _inverted_: (optional, default False) set to True to report the sensor as on when the join is low.  Useful for normally-closed contacts.
 
 ### Sensor
 
 This can represent any read-only analog signal on the control system.  I typically comment out the "in" signals on the XSIG symbol to keep the "in" and "out" signals lined up.  Remember that an analog join on the control system is a 16-bit value that can range from 0-65535.  So for many symbol types (especially those representing a brightness or percent) you will need to make use of the `divisor:` parameter.
-
-Example divisors:
- - For sensors that return 10ths of a degree: 10
- - For joins that represent a percent: 655.35 (to convert the 1-65535 range to 1-100)
 
 ```yaml
 sensor:
@@ -205,11 +287,12 @@ sensor:
     divisor: 10
 ```
 
-- _name_: The entity id will be derived from this string (lower-cased with _ for spaces).  The friendly name will be set to this string.
-- _value_join_: analog join to represent as a sensor in Home Assistant
-- _device_class_: any device class [supported by the sensor](https://www.home-assistant.io/integrations/sensor/) integration.  This mostly affects how the value will be expressed in various UIs.
-- _unit_of_measurement_: Unit of measurement appropriate for the device class as documented [here](https://developers.home-assistant.io/docs/core/entity/sensor/).
-- _divisor_: (optional) number to divide the analog join by to get the correct sensor value.  For example, a crestron temperature sensor returns tenths of a degree (754 represents 75.4 degrees), so you would use a divisor of 10.  Defaults to 1.
+- _value_join_: (required) analog join to represent as a sensor in Home Assistant
+- _device_class_: (required) any device class [supported by the sensor](https://www.home-assistant.io/integrations/sensor/) integration.  This mostly affects how the value will be expressed in various UIs.
+- _unit_of_measurement_: (required) Unit of measurement appropriate for the device class as documented [here](https://developers.home-assistant.io/docs/core/entity/sensor/).
+- _divisor_: (optional, default 1) number to divide the analog join by to get the correct sensor value.  For example, a crestron temperature sensor returns tenths of a degree (754 represents 75.4 degrees), so you would use a divisor of 10.
+
+>Note: `divisor` must be a whole number — a fractional value such as `655.35` is rejected by config validation.  To scale a 0-65535 join to a percent, use a `divisor` of `655` (accurate to within 0.1%) or leave the divisor at 1 and scale in a template sensor.
 
 ### Switch
 
@@ -221,24 +304,31 @@ switch:
     name: "Dummy Switch"
     switch_join: 65
     pulsed: False
+    device_class: switch
 ```
 
-- _name_: The entity id will be derived from this string (lower-cased with _ for spaces).  The friendly name will be set to this string.
-- _switch_join_: digital join to represent as a switch in Home Assistant
-- _pulsed_: indicates whether the switch is switched by a signal pulse, or that it switches by providing the requested state.
+- _switch_join_: (required) digital join to represent as a switch in Home Assistant
+- _pulsed_: (required) indicates whether the switch is switched by a signal pulse, or that it switches by providing the requested state.  See [Pulsed vs. held joins](#pulsed-vs-held-joins).
+- _device_class_: (optional, default `switch`) either `switch` or `outlet`.
 
 ### Media Player
 
-Use media_player to represent the output of a multi-zone switcher.  For example a PAD-8A is an 8x8 (8 inputs x 8 outputs) audio switcher.  This can be represented by 8 media player components (one for each output).  The component supports source selection (input selection) and volume + mute control.  So it is modeled as a "speaker" media player type in Home Assistant.
+Use media_player to represent the output of a multi-zone switcher.  For example a PAD-8A is an 8x8 (8 inputs x 8 outputs) audio switcher.  This can be represented by 8 media player components (one for each output).  The component supports power, source selection (input selection) and volume + mute control.  So it is modeled as a "speaker" media player type in Home Assistant.
 
 This works rather nicely with the template media player integration to allow intuitive control of source devices connected to a multi-zone switcher like the PAD8A.
+
+All of the joins below are required.
 
 ```yaml
 media_player:
   - platform: crestron
     name: "Kitchen Speakers"
+    on_join: 25
+    off_join: 26
     mute_join: 27
     volume_join: 19
+    volume_up_join: 28
+    volume_down_join: 29
     source_number_join: 13
     sources:
       1: "Android TV"
@@ -249,10 +339,13 @@ media_player:
       8: "Crestron Streamer"
 ```
 
-- _name_: The entity id will be derived from this string (lower-cased with _ for spaces).  The friendly name will be set to this string.
+- _on_join_: digital join set high to turn the zone on.  This is not pulsed — the join is left high.
+- _off_join_: digital join that serves double duty.  It is pulsed high to turn the zone off, and it is also the power feedback: the entity reports `on` while this join is high and `off` while it is low.
 - _mute_join_: digital join that represents the mute state of the channel.  Note this is not a toggle. Both to and from the control system True = muted, False = not muted.  This might require some extra logic on the control system side if you only have logic that takes a toggle.
 - _volume_join_: analog join that represents the volume of the channel (0-65535)
-- _source_number_join_: analog join that represents the selected input for the output channel.  1 would correspond to input 1, 2 to input 2, and so on.
+- _volume_up_join_: digital join pulsed high for a volume step up
+- _volume_down_join_: digital join pulsed high for a volume step down
+- _source_number_join_: analog join that represents the selected input for the output channel.  1 would correspond to input 1, 2 to input 2, and so on.  A value of 0 is reported to Home Assistant as no source selected.
 - _sources_: a dictionary of _input_ to _name_ mappings.  The input number is the actual input (corresponding to the source_number_join) number, whereas the name will be shown in the UI when selecting inputs/sources.  So when a user selects the _name_ in the UI, the _source_number_join_ will be set to _input_.
 
 ### Button (virtual)
@@ -260,7 +353,7 @@ media_player:
 This represents action triggers in the control system caused by signal pulses on a digital join. These actions are triggered in Home Assistant by means of a virtual button.
 For instance, a virtual button in a Crestron touch panel that triggers a sequence of events programmed in the control system (e.g. turning all lights off) can also be triggered by Home Assistant by means of a Button.
 
-When a virtual button is pressed in Home Assistant, the associated digital join will change to HIGH and change to LOW right after, generating a signal pulse that can be recognized by the control system as an event.
+When a virtual button is pressed in Home Assistant, the associated digital join will change to HIGH and change to LOW 200ms later, generating a signal pulse that can be recognized by the control system as an event.
 
 ```yaml
 button:
@@ -269,8 +362,16 @@ button:
     button_join: 70
 ```
 
-- _name_: The entity id will be derived from this string (lower-cased with _ for spaces).  The friendly name will be set to this string.
-- _button_join_: digital join to represent as a button in Home Assistant
+- _button_join_: (required) digital join to represent as a button in Home Assistant
+
+### Pulsed vs. held joins
+
+Several platforms distinguish between a join that is *held* at the requested state and one that is *pulsed* to toggle it.  Which one you need depends on how the symbol on the control system is wired.
+
+- **Held** (`pulsed: False`): Home Assistant writes the requested value to the join and leaves it there.  Turning the entity on sets the join high; turning it off sets it low.
+- **Pulsed** (`pulsed: True`): Home Assistant raises the join and drops it again 50ms later, and only does so when the join is not already in the requested state.  Use this for symbols that take a toggle.
+
+The `pulsed:` option is available on `switch` (required) and `climate` (optional, defaults to False).  The `light` platform's `onoff` type is always pulsed, and the pulse-driven joins on `cover`, `media_player` and `button` are always pulsed regardless of configuration.
 
 ### Control Surface Sync
 
@@ -320,6 +421,8 @@ crestron:
  - _value_template_: used instead of _entity_id_/_attribute_ if you need more flexibility on how to set the value (prefix/suffix or math operations) or even to set the join value based on multiple entity IDs/state values.  You have the full power of [HA templating](https://www.home-assistant.io/docs/configuration/templating/) to work with here.
 
  >Note that when you specify an `entity_id`, all changes to that entity_id will result in a join update being sent to the control system.  When you specify a `value_template` a change to any referenced entity will trigger a join update.
+
+ >For digital (`d`) joins, the resulting value must look like a boolean: `on`, `True`, `true`, `1` are sent as high and `off`, `False`, `false`, `0` as low.  Anything else (including `unavailable` or `unknown`) is ignored and the join is left at its previous value.  Serial (`s`) join values longer than 252 characters are dropped.
 
  #### From Control System to HA
 
@@ -373,5 +476,6 @@ crestron:
 
  - _from_joins_: begins the section
  - _join_: for each join, list the join type and number.  The type prefix is 'a' for analog joins, 'd' for digital joins and 's' for serial joins.  So s32 would be serial join #32.  Any change in the listed join will invoke the configured behavior.
- - _script_: This is a standard HA script.  It follows the [HA scripting sytax](https://www.home-assistant.io/docs/scripts/).
+ - _script_: This is a standard HA script.  It follows the [HA scripting sytax](https://www.home-assistant.io/docs/scripts/).  The new value of the join is available to the script as the `value` variable, as shown in the `a2` example above.
 
+ >For digital joins, only the low-to-high transition runs the script.  The high-to-low transition is ignored so that a momentary button press does not fire the script twice.
