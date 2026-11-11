@@ -1,14 +1,3 @@
 {
-  "name": "Crestron XSIG Integration",
-  "render_readme": true,
-  "domains": [
-    "binary_sensor",
-    "button",
-    "climate",
-    "cover",
-    "light",
-    "media_player",
-    "sensor",
-    "switch"
-  ]
+  "name": "Crestron XSIG Integration"
 }
