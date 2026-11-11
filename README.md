@@ -15,7 +15,24 @@ Currently supported devices:
 - Media Player
 - Button (virtual)
 
-## Adding the component to Home Assistant
+## Installing with Marketplace (HACS)
+
+If you're running Home Assistant `2026.11` or greater install via One-click: click the badge below to open this repository in your Home Assistant instance's Marketplace, then click **Download**.
+
+[![Open your Home Assistant instance and open this repository inside Marketplace.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=toscano&repository=hass-crestron-xsig&category=integration)
+
+if you are running Home Assistant prior to `2026.11` install [HACS](https://hacs.xyz) first then follow the manual steps below.
+
+Manual steps:
+
+- In Home Assistant, open **HACS** (or **Marketplace**) from the sidebar.
+- Open the menu (⋮) in the top right and choose **Custom repositories**.
+- Enter `https://github.com/toscano/hass-crestron-xsig` as the repository, select **Integration** as the category, and click **Add**.
+- Find **Crestron XSIG Integration** in the list, click **Download**, and confirm.
+- Restart Home Assistant.
+- Continue with the `configuration.yaml` and control system steps below. HACS installs the files to `config/custom_components/crestron`, so you don't need to copy them yourself.
+
+## Manual installation
 
 - Add the `crestron` directory to `config/custom_components`
 - Add the appropriate sections to `configuration.yaml` (see below)
