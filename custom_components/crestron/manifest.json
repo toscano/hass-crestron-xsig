@@ -1,9 +1,10 @@
 {
   "domain": "crestron",
-  "name": "Crestron XSIG Integraton",
+  "name": "Crestron XSIG Integration",
   "documentation": "https://github.com/toscano/hass-crestron-xsig/blob/master/README.md",
+  "issue_tracker": "https://github.com/toscano/hass-crestron-xsig/issues",
   "dependencies": [],
   "codeowners": ["@toscano", "@bassrock"],
   "requirements": [],
-  "version": "2026.08.03"
+  "version": "2026.11.12"
 }
